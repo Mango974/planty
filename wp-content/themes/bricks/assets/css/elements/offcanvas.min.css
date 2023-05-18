@@ -1,0 +1,64 @@
+.brxe-offcanvas.brx-open .brx-offcanvas-inner {
+  transform: translate(0, 0) !important;
+}
+.brxe-offcanvas.brx-open .brx-offcanvas-backdrop {
+  z-index: 998;
+  opacity: 1;
+  visibility: visible;
+}
+.brxe-offcanvas[data-direction=top] .brx-offcanvas-inner {
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: 300px;
+  width: 100vw;
+  transform: translate(0, -100%);
+}
+.brxe-offcanvas[data-direction=right] .brx-offcanvas-inner {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: 300px;
+  height: 100vh;
+  transform: translate(100%, 0);
+}
+.brxe-offcanvas[data-direction=bottom] .brx-offcanvas-inner {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 300px;
+  width: 100vw;
+  transform: translate(0, 100%);
+}
+.brxe-offcanvas[data-direction=left] .brx-offcanvas-inner {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  width: 300px;
+  height: 100vh;
+  transform: translate(-100%, 0);
+}
+.brxe-offcanvas .brx-offcanvas-inner {
+  z-index: 999;
+  position: fixed;
+  display: flex;
+  background-color: #fff;
+  transition: all 0.2s cubic-bezier(0.25, 0, 0.25, 1);
+  overflow: hidden;
+}
+.brxe-offcanvas .brx-offcanvas-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  opacity: 0;
+  z-index: -1;
+  visibility: hidden;
+  background: rgba(0, 0, 0, 0.5);
+  transition: all 0.2s cubic-bezier(0.25, 0, 0.25, 1);
+}

@@ -1,0 +1,32 @@
+.image-com {
+    border-radius: 20px;
+}
+.wpcf7-select {
+        padding: 10px;               /* marge interne de 10 pixels*/width:50px;
+        border-radius: 3px;          /* rayon de la bordure courbé de 3 pixels */
+        border: 1px solid #d9dbdd;   /* bordure large de 1 pixel, continue et de couleur #d9dbdd (code couleur HEX) */
+        background: #e8eaed;         /* arrière-plan de couleur #e8eaed (code couleur HEX) */
+        font-size: 17px;             /* taille de police de 17 pixels */
+        color: red;
+}
+
+.commande {
+  width:860px;
+  display:grid;
+  grid-template-columns: 1fr 1fr ;
+  margin:10px auto;
+}
+
+.wpcf7-submit {
+    background: #002855;         /* couleur d’arrière-plan */
+    color: #e8eaed;              /* couleur de police */
+    padding: 15px 0;             /* marge interne de 15 pixels en haut et en bas et de 0 pixel à droite et à gauche */
+    font-size: 20px;             /* taille de police */
+    font-weight: bold;           /* épaisseur de police grasse */
+    border-radius: 3px;          /* rayon de la bordure */
+    border: 0;                   /* taille de la bordure, et dans ce cas absence de bordure */
+    transition: .3s ease-in-out; /* animation de transition, dans ce cas pour la transition de couleur d’arrière-plan en mode survol */
+}
+wpcf7-form-control.wpcf7-select {
+    background-color: red;
+}
