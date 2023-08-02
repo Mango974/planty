@@ -1,4 +1,5 @@
 <?php
+
 namespace Bricksforge;
 
 add_action('brf_backup_classes', [new GlobalClasses(true), 'create_global_classes_backup']);
@@ -44,10 +45,18 @@ class GlobalClasses
             return;
         }
 
+        if (!get_option('brf_tool_settings')) {
+            return;
+        }
+
         // Get get_option('brf_tool_settings') (object) with the key "id" equal to 10
         $backup_settings = array_filter(get_option('brf_tool_settings'), function ($tool) {
             return $tool->id == 10;
         });
+
+        if (count($backup_settings) == 0) {
+            return;
+        }
 
         // Reset indexes
         $backup_settings = array_values($backup_settings);

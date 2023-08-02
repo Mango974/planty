@@ -58,14 +58,15 @@ class Animations
         }
 
         wp_enqueue_script('bricksforge-animator');
-        wp_enqueue_script('brf_gsap');
+        wp_enqueue_script('bricksforge-gsap');
 
         if ($needs_scrolltrigger === true) {
-            wp_enqueue_script('brf_gsap_scrolltrigger');
+            wp_enqueue_script('bricksforge-gsap-scrolltrigger');
         }
 
         if ($needs_motion_path === true) {
-            wp_enqueue_script('brf_gsap_motionpath');
+            wp_enqueue_script('bricksforge-gsap-motionpath');
+            wp_enqueue_script('bricksforge-gsap-motionpath-helper');
         }
     }
 

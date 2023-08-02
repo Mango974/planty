@@ -1,8 +1,27 @@
 /*!
-  * vue-router v4.1.5
-  * (c) 2022 Eduardo San Martin Morote
+  * vue-router v4.2.2
+  * (c) 2023 Eduardo San Martin Morote
   * @license MIT
   */
+
+/*!
+ * Quill Editor v1.3.7
+ * https://quilljs.com/
+ * Copyright (c) 2014, Jason Chen
+ * Copyright (c) 2013, salesforce.com
+ */
+
+/*!
+ * VueQuill @vueup/vue-quill v1.2.0
+ * https://vueup.github.io/vue-quill/
+ * 
+ * Includes quill v1.3.7
+ * https://quilljs.com/
+ * 
+ * Copyright (c) 2023 Ahmad Luthfi Masruri
+ * Released under the MIT license
+ * Date: 2023-05-12T08:44:03.742Z
+ */
 
 /*!
 * VueCodemirror v6.1.1

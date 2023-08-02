@@ -322,6 +322,28 @@ class Bricksforge extends WP_REST_Controller
                 )
             )
         );
+        register_rest_route(
+            $this->namespace,
+            '/render_dynamic_data',
+            array(
+                array(
+                    'methods'             => \WP_REST_Server::READABLE,
+                    'callback'            => array($this, 'render_dynamic_data'),
+                    'permission_callback' => array($this, 'allowed'),
+                )
+            )
+        );
+        register_rest_route(
+            $this->namespace,
+            '/temporary_upload_file',
+            array(
+                array(
+                    'methods'             => \WP_REST_Server::CREATABLE,
+                    'callback'            => array($this, 'temporary_upload_file'),
+                    'permission_callback' => array($this, 'allowed'),
+                )
+            )
+        );
     }
 
     /**
@@ -407,7 +429,7 @@ class Bricksforge extends WP_REST_Controller
             return false;
         }
 
-        update_option('brf_permissions_roles', $roles);
+        update_option('brf_permissions_roles', $roles, 'no');
 
         return true;
     }
@@ -455,7 +477,12 @@ class Bricksforge extends WP_REST_Controller
         $categories = json_decode($data)[0];
         $activated = json_decode($data)[1];
 
-        if (!isset($categories) || count($categories) == 0) {
+        if (!isset($categories)) {
+            return false;
+        }
+
+        if (count($categories) === 0) {
+            update_option('brf_global_classes', $categories, "no");
             return false;
         }
 
@@ -468,19 +495,20 @@ class Bricksforge extends WP_REST_Controller
         }
 
         update_option('brf_global_classes_activated', $activated);
-        update_option('brf_global_classes', $categories);
+        update_option('brf_global_classes', $categories, "no");
 
         $global_classes = get_option('bricks_global_classes') ? get_option('bricks_global_classes') : [];
         $global_classes_locked = get_option('bricks_global_classes_locked') ? get_option('bricks_global_classes_locked') : [];
 
         foreach ($categories as $category) {
+
             foreach ($category->classes as $class) {
                 if (($key = array_search($class, $global_classes_locked)) !== false) {
                     unset($global_classes_locked[$key]);
                 }
 
                 foreach ($global_classes as $key => $row) {
-                    if ($row["source"] === 'bricksforge') {
+                    if (isset($row["source"]) && $row["source"] === 'bricksforge') {
                         unset($global_classes[$key]);
                     }
                 }
@@ -491,6 +519,12 @@ class Bricksforge extends WP_REST_Controller
         $global_classes_locked = array_values($global_classes_locked);
 
         foreach ($categories as $category) {
+
+            $is_active = isset($category->active) ? $category->active : true;
+
+            if (!$is_active) {
+                continue;
+            }
 
             if ($category->classes && !empty($category->classes)) {
 
@@ -740,6 +774,8 @@ class Bricksforge extends WP_REST_Controller
         delete_option('brf_terminal_history');
         delete_option('brf_backend_designer');
         delete_option('brf_unread_submissions');
+        delete_option('brf_email_designer_data');
+        delete_option('brf_email_designer_themes');
     }
 
     /**
@@ -762,6 +798,9 @@ class Bricksforge extends WP_REST_Controller
             'brf_tool_settings'            => get_option('brf_tool_settings'),
             'brf_terminal_history'         => get_option('brf_terminal_history'),
             'brf_backend_designer'         => get_option('brf_backend_designer'),
+            'brf_email_designer_data'      => get_option('brf_email_designer_data'),
+            'brf_email_designer_themes'    => get_option('brf_email_designer_themes'),
+
         );
         $json_data = json_encode($options);
         $file_name = 'bricksforge' . $current_time . '.json';
@@ -791,9 +830,9 @@ class Bricksforge extends WP_REST_Controller
             return false;
         }
 
-        update_option('brf_permissions_roles', $settings->brf_permissions_roles);
+        update_option('brf_permissions_roles', $settings->brf_permissions_roles, 'no');
         update_option('brf_global_classes_activated', $settings->brf_global_classes_activated);
-        update_option('brf_global_classes', $settings->brf_global_classes);
+        update_option('brf_global_classes', $settings->brf_global_classes, 'no');
         update_option('brf_activated_tools', $settings->brf_activated_tools);
         update_option('brf_activated_elements', $settings->brf_activated_elements);
         update_option('brf_popups', $settings->brf_popups);
@@ -803,6 +842,8 @@ class Bricksforge extends WP_REST_Controller
         update_option('brf_tool_settings', $settings->brf_tool_settings);
         update_option('brf_terminal_history', $settings->brf_terminal_history);
         update_option('brf_backend_designer', $settings->brf_backend_designer);
+        update_option('brf_email_designer_data', $settings->brf_email_designer_data);
+        update_option('brf_email_designer_themes', $settings->brf_email_designer_themes);
 
         return true;
     }
@@ -833,6 +874,77 @@ class Bricksforge extends WP_REST_Controller
         return wp_verify_nonce($nonce, 'wp_rest');
     }
 
+    public function temporary_upload_file()
+    {
+        $this->clear_temp_directory();
+
+        $uploaded_files = [];
+
+        // Loop over each key in the $_FILES array
+        foreach ($_FILES as $key => $file) {
+            // Check if the file was uploaded successfully and has no errors
+            if ($file['error'] === 0) {
+                // Check the file type
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $file_type = finfo_file($finfo, $file['tmp_name']);
+                finfo_close($finfo);
+                $allowed_types = array('image/jpeg', 'image/png', 'image/gif');
+                if (!in_array($file_type, $allowed_types)) {
+                    continue; // Skip the file if it's not an allowed type
+                }
+
+                // Check the file size
+                $file_size = filesize($file['tmp_name']);
+                $max_size = 20971520; // 20 MB (Temporarily)
+                if ($file_size > $max_size) {
+                    continue; // Skip the file if it's too large
+                }
+
+                // Generate a unique filename
+                $file_name_new = uniqid('', true) . '_' . $file['name'];
+                // Set the destination path for the uploaded file
+                $file_directory = BRICKSFORGE_TEMP_DIR . 'temp/';
+                if (!is_dir($file_directory)) {
+                    mkdir($file_directory, 0755, true); // Create the directory if it doesn't exist
+                }
+                $file_destination = $file_directory . '/' . $file_name_new;
+                // Move the uploaded file to the destination path
+                if (move_uploaded_file($file['tmp_name'], $file_destination)) {
+                    // Add the temporary file name to the array of uploaded files
+                    $uploaded_files[] = $file_name_new;
+                }
+            }
+        }
+
+        // If no files were uploaded, return false
+        if (count($uploaded_files) === 0) {
+            return false;
+        }
+
+        // If only one file was uploaded, return its temporary file name
+        if (count($uploaded_files) === 1) {
+            return $uploaded_files[0];
+        }
+
+        // If multiple files were uploaded, return the array of temporary file names
+        return $uploaded_files;
+    }
+
+    public function clear_temp_directory()
+    {
+        $temp_directory = BRICKSFORGE_TEMP_DIR . 'temp/';
+
+        if (is_dir($temp_directory)) {
+            $files = glob($temp_directory . '*', GLOB_MARK);
+
+            foreach ($files as $file) {
+                if (is_writable($file)) {
+                    unlink($file);
+                }
+            }
+        }
+    }
+
     public function form_init($request)
     {
         include_once(BRICKSFORGE_PATH . '/includes/api/FormsHelper.php');
@@ -858,12 +970,18 @@ class Bricksforge extends WP_REST_Controller
 
             foreach ($form_settings["submitButtonConditions"] as $condition) {
 
+                $value1 = bricks_render_dynamic_data($condition['submitButtonConditionValue'], $dynamic_post_id ? $dynamic_post_id : $post_id);
+                $value1 = $forms_helper->get_form_field_by_id($value1, $form_data);
+
+                $value2 = bricks_render_dynamic_data($condition['submitButtonConditionValue2'], $dynamic_post_id ? $dynamic_post_id : $post_id);
+                $value2 = $forms_helper->get_form_field_by_id($value2, $form_data);
+
                 $submit_conditions[] = array(
                     'condition' => $condition['submitButtonCondition'],
                     'operator'  => $condition['submitButtonConditionOperator'],
                     'dataType'  => $condition['submitButtonConditionType'],
-                    'value'     => bricks_render_dynamic_data($condition['submitButtonConditionValue'], $dynamic_post_id ? $dynamic_post_id : $post_id),
-                    'value2'    => bricks_render_dynamic_data($condition['submitButtonConditionValue2'], $dynamic_post_id ? $dynamic_post_id : $post_id),
+                    'value'     => $value1,
+                    'value2'    => $value2,
                     'post_id'   => bricks_render_dynamic_data($condition['submitButtonConditionPostId'], $dynamic_post_id ? $dynamic_post_id : $post_id)
                 );
 
@@ -873,7 +991,8 @@ class Bricksforge extends WP_REST_Controller
                         $submit_conditions[count($submit_conditions) - 1]['data'] = get_option($condition['submitButtonConditionValue']);
                         break;
                     case 'post_meta':
-                        $submit_conditions[count($submit_conditions) - 1]['data'] = get_post_meta($dynamic_post_id ? $dynamic_post_id : $post_id, $condition['submitButtonConditionValue'], true);
+                        $s_post_id = $forms_helper->get_form_field_by_id($submit_conditions[count($submit_conditions) - 1]['post_id'], $form_data);
+                        $submit_conditions[count($submit_conditions) - 1]['data'] = get_post_meta($s_post_id, $condition['submitButtonConditionValue'], true);
                         break;
                     case 'storage_item':
                         $submit_conditions[count($submit_conditions) - 1]['data'] = get_option($condition['submitButtonConditionValue']);
@@ -980,21 +1099,24 @@ class Bricksforge extends WP_REST_Controller
 
         $forms_helper = new FormsHelper();
 
+        $form_data = $request->get_param('formData');
+        $form_files = $request->get_param('formFiles');
         $post_id = absint($request->get_param('postId'));
         $dynamic_post_id = $request->get_param('dynamicPostId');
         $form_id = $request->get_param('formId');
         $captcha_result = $request->get_param('captchaResult');
+        $turnstile_result = $request->get_param('turnstileResult');
 
         $form_settings = \Bricks\Helpers::get_element_settings($post_id, $form_id);
+
         $hcaptcha_enabled = $form_settings['enableHCaptcha'];
+        $turnstile_enabled = $form_settings['enableTurnstile'];
 
         if (!isset($form_settings) || empty($form_settings)) {
             return false;
         }
 
         $form_actions = $form_settings['actions'];
-        $form_data = $request->get_param('formData');
-
         $return_values = array();
 
         // First of all, we need to check if the captcha is valid. If not, we need to stop here.
@@ -1004,9 +1126,22 @@ class Bricksforge extends WP_REST_Controller
             }
         }
 
-        // If there is an action "post_create" in the form settings, create a post
+        if ($turnstile_enabled === true) {
+            if (!$forms_helper->handle_turnstile($form_settings, $form_data, $turnstile_result ? $turnstile_result : null)) {
+                wp_send_json_error(array(
+                    'message' => __(isset($form_settings['turnstileErrorMessage']) ? $form_settings['turnstileErrorMessage'] : 'Your submission is being verified. Please wait a moment before submitting again.', 'bricksforge'),
+                ));
+
+                return false;
+            }
+        }
+
         if (in_array('post_create', $form_actions)) {
             $forms_helper->create_post($form_settings, $form_data);
+        }
+
+        if (in_array('post_update', $form_actions)) {
+            $forms_helper->update_post($form_settings, $form_data, $post_id, $dynamic_post_id, $form_files);
         }
 
         if (in_array('add_option', $form_actions)) {
@@ -1026,7 +1161,6 @@ class Bricksforge extends WP_REST_Controller
 
         if (in_array('update_post_meta', $form_actions)) {
             $result = $forms_helper->update_post_meta($form_settings, $form_data, $post_id, $dynamic_post_id);
-            return $result;
             if ($result) {
                 $return_values['update_post_meta'] = $result;
             }
@@ -1050,6 +1184,13 @@ class Bricksforge extends WP_REST_Controller
             $result = $forms_helper->update_user_meta($form_settings, $form_data, $post_id, $form_id);
             if ($result) {
                 $return_values['update_user_meta'] = $result;
+            }
+        }
+
+        if (in_array('reset_user_password', $form_actions)) {
+            $result = $forms_helper->reset_user_password($form_settings, $form_data, $post_id, $form_id);
+            if ($result) {
+                $return_values['reset_user_password'] = $result;
             }
         }
 
@@ -1231,6 +1372,11 @@ class Bricksforge extends WP_REST_Controller
         $pattern = '/(?:[\.]{1})([a-zA-Z_]+[\w_]*)(?:[\s\.\,\{\>#\:]{0})/im';
 
         foreach ($categories as $category) {
+
+            if (isset($category->active) && $category->active == false) {
+                continue;
+            }
+
             $prefix = $category->prefix;
             if (is_null($prefix)) {
                 $css_content .= PHP_EOL . $category->code;
@@ -1257,5 +1403,21 @@ class Bricksforge extends WP_REST_Controller
             $value = sanitize_text_field($value);
         }
         return $value;
+    }
+
+    public function render_dynamic_data($request)
+    {
+        $value = $request->get_param('_value');
+        $post_id = $request->get_param('_post_id');
+
+        if (empty($value)) {
+            return false;
+        }
+
+        if (empty($post_id)) {
+            $post_id = null;
+        }
+
+        return bricks_render_dynamic_data($value, $post_id);
     }
 }

@@ -22,7 +22,7 @@ class Brf_Flip_Everything extends \Bricks\Element
 
     public function enqueue_scripts()
     {
-        wp_enqueue_script('brf_gsap');
+        wp_enqueue_script('bricksforge-gsap');
         wp_enqueue_script('bricksforge-elements');
     }
 

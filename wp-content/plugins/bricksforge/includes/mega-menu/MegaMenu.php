@@ -2,8 +2,6 @@
 
 namespace Bricksforge;
 
-require __DIR__ . "/mega-menu-walker.php";
-
 /**
  * Mega Menu Handler
  */
@@ -91,6 +89,8 @@ class MegaMenu
 
     public function wpm_custom_nav_edit_walker($walker, $menu_id)
     {
+        require_once 'mega-menu-walker.php';
+
         return 'Brf_Walker_Nav_Menu';
     }
 
@@ -100,6 +100,13 @@ class MegaMenu
             $custom_value = $_REQUEST['menu-item-bricks-template'][$menu_item_db_id];
             update_post_meta($menu_item_db_id, '_menu_item_bricks_template', $custom_value);
         }
+    }
+
+
+    public function wpm_bricks_template_nav_item($menu_item)
+    {
+        $menu_item->wpm_megamenu = get_post_meta($menu_item->ID, '_menu_item_bricks_template', true);
+        return $menu_item;
     }
 
     private function customize_admin_menu()
@@ -209,7 +216,8 @@ class MegaMenu
                 'group'   => 'wpmMegaMenu',
                 'label'   => esc_html__('Closing Selector', 'bricks'),
                 'type'    => 'text',
-                'default' => 'main'
+                'default' => 'main',
+                'description' => esc_html__('The selector for an element that triggers the closure of the mega menu. Example: main', 'bricks')
             ];
 
             $controls['megaMenuCloseWhenLeavingNavItem'] = [
@@ -234,11 +242,5 @@ class MegaMenu
 
             return $controls;
         });
-    }
-
-    public function wpm_bricks_template_nav_item($menu_item)
-    {
-        $menu_item->wpm_megamenu = get_post_meta($menu_item->ID, '_menu_item_bricks_template', true);
-        return $menu_item;
     }
 }

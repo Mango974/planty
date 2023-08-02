@@ -17,8 +17,8 @@ class Frontend
         wp_enqueue_style('bricksforge-style');
 
         if (bricks_is_builder()) {
-            wp_enqueue_style('bricksforge-frontend');
-            wp_enqueue_script('bricksforge-frontend');
+            wp_enqueue_style('bricksforge-builder');
+            wp_enqueue_script('bricksforge-builder');
         }
 
         add_shortcode('bricksforge', [$this, 'render_frontend']);
@@ -33,9 +33,9 @@ class Frontend
 
             if (bricks_is_builder()) {
                 wp_enqueue_script('bricksforge-panel');
-                wp_enqueue_script('brf_gsap_draggable');
-                wp_enqueue_script('brf_gsap_splittext');
-                wp_enqueue_script('brf_gsap_flip');
+                wp_enqueue_script('bricksforge-gsap-draggable');
+                wp_enqueue_script('bricksforge-gsap-splittext');
+                wp_enqueue_script('bricksforge-gsap-flip');
             }
 
             if ($panel_data) {
@@ -47,7 +47,7 @@ class Frontend
 
                 if ($timelines) {
                     wp_enqueue_script('bricksforge-panel');
-                    wp_enqueue_script('brf_gsap');
+                    wp_enqueue_script('bricksforge-gsap');
 
                     // Check if $timelines contains an item on which the key "trigger" is equal to "scrollTrigger". If so, return true
                     $has_scrollTrigger = array_filter($timelines, function ($timeline) {
@@ -65,11 +65,11 @@ class Frontend
                     });
 
                     if ($has_scrollTrigger) {
-                        wp_enqueue_script('brf_gsap_scrolltrigger');
+                        wp_enqueue_script('bricksforge-gsap-scrolltrigger');
                     }
 
                     if ($has_splitText) {
-                        wp_enqueue_script('brf_gsap_splittext');
+                        wp_enqueue_script('bricksforge-gsap-splittext');
                     }
                 }
 
@@ -117,11 +117,11 @@ class Frontend
                     });
 
                     if ($has_gsapSet || $has_gsap || $has_gsapTo) {
-                        wp_enqueue_script('brf_gsap');
+                        wp_enqueue_script('bricksforge-gsap');
                     }
 
                     if ($has_gsapFlip) {
-                        wp_enqueue_script('brf_gsap_flip');
+                        wp_enqueue_script('bricksforge-gsap-flip');
                     }
                 }
             }
@@ -139,10 +139,6 @@ class Frontend
                         'apiurl'            => get_rest_url() . "bricksforge/v1/",
                         "pageData"          => \Bricks\Database::get_data(),
                         'bricksPrefix'      => BRICKSFORGE_BRICKS_ELEMENT_PREFIX,
-                        'breakpoints'       => \Bricks\Breakpoints::$breakpoints,
-                        'panel'             => get_option('brf_panel'),
-                        'panelActivated'    => get_option('brf_activated_tools') && in_array(6, get_option('brf_activated_tools')),
-                        'megaMenuActivated' => get_option('brf_activated_tools') && in_array(3, get_option('brf_activated_tools'))
                     )
                 );
             });
@@ -190,7 +186,7 @@ class Frontend
 
             switch ($scrollsmooth_provider) {
                 case 'gsap':
-                    wp_enqueue_script('brf_gsap_scrollsmoother');
+                    wp_enqueue_script('bricksforge-gsap-scrollsmoother');
 
                     // Wrap needed container IDs
                     add_action('bricks_before_site_wrapper', function () {
@@ -241,24 +237,18 @@ class Frontend
                 'siteurl'                   => get_option('siteurl'),
                 'pluginurl'                 => BRICKSFORGE_URL,
                 'apiurl'                    => get_rest_url() . "bricksforge/v1/",
-                'globalClasses'             => get_option('bricks_global_classes'),
-                'globalClassesLocked'       => get_option('bricks_global_classes_locked'),
                 'brfGlobalClassesActivated' => get_option('brf_global_classes_activated'),
                 'brfActivatedTools'         => get_option('brf_activated_tools'),
-                "pageData"                  => \Bricks\Database::get_data(),
-                'bricksPrefix'              => BRICKSFORGE_BRICKS_ELEMENT_PREFIX,
-                'breakpoints'               => \Bricks\Breakpoints::$breakpoints,
-                'icons'                     => \Bricks\Builder::get_icon_font_classes(),
-                'permissions'               => get_option('brf_permissions_roles'),
                 'panel'                     => get_option('brf_panel'),
                 'panelActivated'            => get_option('brf_activated_tools') && in_array(6, get_option('brf_activated_tools')),
-                'megaMenuActivated'         => get_option('brf_activated_tools') && in_array(3, get_option('brf_activated_tools')),
-                'headerData'                => \Bricks\Database::get_template_data('header'),
-                'currentUserRole'           => bricks_is_builder() ? $this->get_current_user_role() : '',
-                'toolSettings'              => get_option('brf_tool_settings')
             );
 
-            wp_localize_script('bricksforge-panel', 'BRFVARS', $args);
+            if (bricks_is_builder()) {
+                $args['permissions'] = get_option('brf_permissions_roles');
+                $args['currentUserRole'] = $this->get_current_user_role();
+            }
+
+            wp_localize_script('bricksforge-panel', 'BRFPANEL', $args);
         });
     }
 
@@ -282,9 +272,9 @@ class Frontend
      */
     public function render_frontend($atts, $content = '')
     {
-        wp_enqueue_style('bricksforge-frontend');
+        wp_enqueue_style('bricksforge-builder');
         wp_enqueue_style('bricksforge-style');
-        wp_enqueue_script('bricksforge-frontend');
+        wp_enqueue_script('bricksforge-builder');
 
         $content .= '<div id="bricksforge-triggers"></div>';
 

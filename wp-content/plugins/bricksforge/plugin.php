@@ -3,7 +3,7 @@
 Plugin Name: Bricksforge
 Plugin URI: https://www.bricksforge.io
 Description: A powerful set of tools to extend the Bricks Builder functionality.
-Version: 0.9.7
+Version: 0.9.8.4
 Author: Bricksforge
 Author URI: https://www.bricksforge.io
 License: GPL2
@@ -40,7 +40,7 @@ if (!class_exists('Bricksforge')) {
          *
          * @var string
          */
-        public $version = '0.9.7';
+        public $version = '0.9.8.4';
 
         /**
          * Holds various class instances
@@ -57,7 +57,6 @@ if (!class_exists('Bricksforge')) {
          */
         public function __construct()
         {
-
             $this->define_constants();
 
             register_activation_hook(__FILE__, array($this, 'activate'));
@@ -128,6 +127,7 @@ if (!class_exists('Bricksforge')) {
             define('BRICKSFORGE_ELEMENTS_ROOT_PATH', BRICKSFORGE_URL . '/includes/elements');
             define('BRICKSFORGE_BRICKS_ELEMENT_PREFIX', 'brxe-');
             define('BRICKSFORGE_SUBMISSIONS_DB_TABLE', 'bricksforge_submissions');
+            define('BRICKSFORGE_TEMP_DIR', wp_upload_dir()['basedir'] . '/bricksforge/');
         }
 
         /**
@@ -137,7 +137,6 @@ if (!class_exists('Bricksforge')) {
          */
         public function init_plugin()
         {
-
             $this->includes();
             $this->init_hooks();
         }
@@ -188,6 +187,7 @@ if (!class_exists('Bricksforge')) {
             require_once BRICKSFORGE_INCLUDES . '/backend-designer/BackendDesigner.php';
             require_once BRICKSFORGE_INCLUDES . '/form-submissions/FormSubmissions.php';
             require_once BRICKSFORGE_INCLUDES . '/dynamic-data/DynamicData.php';
+            require_once BRICKSFORGE_INCLUDES . '/email-designer/EmailDesigner.php';
 
             if ($this->is_request('admin')) {
                 require_once BRICKSFORGE_INCLUDES . '/Admin.php';
@@ -299,6 +299,10 @@ if (!class_exists('Bricksforge')) {
 
             if ($this->is_request('ajax')) {
                 // $this->container['ajax'] =  new Bricksforge\Ajax();
+            }
+
+            if (!isset($this->container['emaildesigner'])) {
+                $this->container['emaildesigner'] = Bricksforge\EmailDesigner::get_instance();
             }
 
             $this->container['api'] = new Bricksforge\Api();

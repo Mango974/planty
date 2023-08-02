@@ -9,6 +9,7 @@ class FormsHelper
     {
         $post_status;
         $post_categories;
+        $post_taxonomies;
         $post_title;
         $post_content;
         $custom_fields;
@@ -24,6 +25,29 @@ class FormsHelper
             // Get the category id from the category slug
             $post_categories[$key] = get_category_by_slug($post_categories[$key])->term_id;
         }
+
+        // Handle taxonomies
+        $post_taxonomies = $form_settings['pro_forms_post_action_post_create_taxonomies'] ? $form_settings['pro_forms_post_action_post_create_taxonomies'] : [];
+
+        // Loop through taxonomies and create an array with taxonomy names as keys and arrays of term IDs as values
+        $temp_post_taxonomies = [];
+        foreach ($post_taxonomies as $key => $value) {
+            $taxonomy_slug = $value['taxonomy'];
+            $term_slugs = array_map('trim', explode(',', $value['term']));
+
+            foreach ($term_slugs as $term_slug) {
+                $term_slug = $this->get_form_field_by_id($term_slug, $form_data);
+                $term = get_term_by('slug', $term_slug, $taxonomy_slug);
+
+                if (!isset($temp_post_taxonomies[$taxonomy_slug])) {
+                    $temp_post_taxonomies[$taxonomy_slug] = [];
+                }
+
+                $temp_post_taxonomies[$taxonomy_slug][] = $term->term_id;
+            }
+        }
+
+        $post_taxonomies = $temp_post_taxonomies;
 
         $post_title = $form_settings['pro_forms_post_action_post_create_title'];
         $post_content = $form_settings['pro_forms_post_action_post_create_content'];
@@ -56,10 +80,15 @@ class FormsHelper
             'post_status'   => $post_status,
             'post_type'     => $form_settings['pro_forms_post_action_post_create_pt'] ? $form_settings['pro_forms_post_action_post_create_pt'] : 'post',
             'meta_input'    => $custom_fields ? $custom_fields : array(),
-            'post_category' => $post_categories ? $post_categories : array(),
+            'post_category' => $post_categories ? $post_categories : array()
         );
 
         $post_id = wp_insert_post($post);
+
+        // Set taxonomy terms for the newly created post
+        foreach ($post_taxonomies as $taxonomy => $term_ids) {
+            wp_set_object_terms($post_id, $term_ids, $taxonomy);
+        }
 
         return $post_id;
     }
@@ -210,9 +239,125 @@ class FormsHelper
         return true;
     }
 
+    public function update_post($form_settings, $form_data, $current_post_id, $dynamic_post_id, $form_files)
+    {
+        $post_id;
+        $post_title;
+        $post_content;
+        $post_status;
+        $post_excerpt;
+        $post_date;
+        $post_thumbnail;
+
+        $post_id = $form_settings['pro_forms_post_action_post_update_post_id'] ? $form_settings['pro_forms_post_action_post_update_post_id'] : $post_id;
+        $post_id = $this->get_form_field_by_id($post_id, $form_data);
+
+        if (!$post_id || !is_numeric($post_id)) {
+            $post_id = $current_post_id;
+        }
+
+        $post_id = absint($post_id);
+
+        if (!$post_id && isset($dynamic_post_id) && $dynamic_post_id) {
+            $post_id = absint($dynamic_post_id);
+        }
+
+        $post_title = $form_settings['pro_forms_post_action_post_update_title'] ? $form_settings['pro_forms_post_action_post_update_title'] : $post_title;
+        $post_title = $this->get_form_field_by_id($post_title, $form_data);
+
+        $post_content = $form_settings['pro_forms_post_action_post_update_content'] ? $form_settings['pro_forms_post_action_post_update_content'] : $post_content;
+        $post_content = $this->get_form_field_by_id($post_content, $form_data);
+
+        $post_status = $form_settings['pro_forms_post_action_post_update_status'] ? $form_settings['pro_forms_post_action_post_update_status'] : $post_status;
+        $post_status = $this->get_form_field_by_id($post_status, $form_data);
+
+        $post_excerpt = $form_settings['pro_forms_post_action_post_update_excerpt'] ? $form_settings['pro_forms_post_action_post_update_excerpt'] : $post_excerpt;
+        $post_excerpt = $this->get_form_field_by_id($post_excerpt, $form_data);
+
+        $post_date = $form_settings['pro_forms_post_action_post_update_date'] ? $form_settings['pro_forms_post_action_post_update_date'] : $post_date;
+        $post_date = $this->get_form_field_by_id($post_date, $form_data);
+
+        $post_thumbnail = $form_settings['pro_forms_post_action_post_update_thumbnail'] ? $form_settings['pro_forms_post_action_post_update_thumbnail'] : $post_thumbnail;
+
+        if ($post_date) {
+            $post_date = date('Y-m-d H:i:s', strtotime($post_date));
+        }
+
+        if ($post_thumbnail && isset($form_files) && count($form_files)) {
+
+            $post_thumbnail = array_filter($form_files, function ($item) use ($post_thumbnail) {
+                return $item['field'] === $post_thumbnail;
+            });
+
+            if ($post_thumbnail && count($post_thumbnail)) {
+
+                $file_name = $form_files[0]['name'];
+
+                $file_path = BRICKSFORGE_TEMP_DIR . 'temp/' . $file_name;
+
+                if (file_exists($file_path)) {
+                    // Read the content of the temporary file
+                    $file_content = file_get_contents($file_path);
+
+                    // Use wp_upload_bits() to create a copy of the file in the WordPress uploads directory
+                    $uploaded_file = wp_upload_bits($file_name, null, $file_content);
+
+                    if (!$uploaded_file['error']) {
+                        $file_path = $uploaded_file['file']; // Update the file path to the new file in the WordPress uploads directory
+                        $file_type = wp_check_filetype(basename($file_path), null);
+
+                        $attachment = array(
+                            'guid'           => $uploaded_file['url'], // Use the URL of the new file in the WordPress uploads directory
+                            'post_mime_type' => $file_type['type'],
+                            'post_title'     => preg_replace('/\.[^.]+$/', '', basename($file_path)),
+                            'post_content'   => '',
+                            'post_status'    => 'inherit',
+                        );
+
+                        $attach_id = wp_insert_attachment($attachment, $file_path);
+
+                        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+                        $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
+                        wp_update_attachment_metadata($attach_id, $attach_data);
+
+                        $post_thumbnail = $attach_id;
+                    }
+                }
+            }
+        }
+
+        // Sanitize
+        $post_title = sanitize_text_field($post_title);
+        $post_content = wp_kses_post($post_content);
+        $post_status = sanitize_key($post_status);
+        $post_excerpt = sanitize_text_field($post_excerpt);
+        $post_date = sanitize_text_field($post_date);
+
+        $post_data = array(
+            'ID'           => $post_id,
+            'post_title'   => $post_title,
+            'post_content' => $post_content,
+            'post_status'  => $post_status,
+            'post_excerpt' => $post_excerpt,
+            'post_date'    => $post_date,
+        );
+
+        $post_data = array_filter($post_data);
+
+        $result = wp_update_post($post_data, true);
+
+        if ($post_thumbnail && $post_id) {
+            set_post_thumbnail($post_id, $post_thumbnail);
+        }
+
+        return $result;
+    }
+
     public function update_post_meta($form_settings, $form_data, $post_id, $dynamic_post_id)
     {
         if (isset($dynamic_post_id) && $dynamic_post_id) {
+            $dynamic_post_id = $this->get_form_field_by_id($dynamic_post_id, $form_data);
             $dynamic_post_id = absint($dynamic_post_id);
         }
 
@@ -220,7 +365,9 @@ class FormsHelper
 
         $post_meta_data = array_map(function ($item) use ($post_id, $dynamic_post_id) {
             $post_id = isset($item['post_id']) && $item['post_id'] ? intval($item['post_id']) : intval($post_id);
+
             $post_id = $dynamic_post_id ? $dynamic_post_id : $post_id;
+
 
             return array(
                 'post_id'      => $post_id,
@@ -281,10 +428,15 @@ class FormsHelper
                 case 'add_to_array':
                     // Add the new value to the array
                     if (!is_array($current_value)) {
-                        $new_post_meta_value = array($current_value, $post_meta_value);
+                        if (!empty(trim($current_value))) {
+                            $new_post_meta_value = array($current_value, $post_meta_value);
+                        } else {
+                            $new_post_meta_value = array($post_meta_value);
+                        }
                     } else {
                         $new_post_meta_value = array_merge($current_value, array($post_meta_value));
                     }
+
                     break;
                 case 'remove_from_array':
                     // If the current value is not an array, make it one and remove the new value
@@ -355,6 +507,168 @@ class FormsHelper
         }
 
         return $updated_values;
+    }
+
+    public function reset_user_password($form_settings, $form_data, $post_id, $form_id)
+    {
+        $method = $form_settings['resetUserPasswordMethod'];
+        $email_field = $form_settings['resetUserPasswordEmail'];
+        $email = $this->get_form_field_by_id($email_field, $form_data);
+        $user = get_user_by('email', $email);
+
+        switch ($method) {
+            case 'request':
+                if ($user) {
+
+                    $result = retrieve_password($user->user_login);
+
+                    if (is_wp_error($result)) {
+                        error_log($result->get_error_message());
+                    }
+                } else {
+                    error_log("User with email $email does not exist");
+                }
+                break;
+            case 'update':
+                $verify_password_confirmation = isset($form_settings['resetUserPasswordVerifyPasswordConfirmation']) ? $form_settings['resetUserPasswordVerifyPasswordConfirmation'] : false;
+                $verify_current_password = isset($form_settings['resetUserPasswordVerifyCurrentPassword']) ? $form_settings['resetUserPasswordVerifyCurrentPassword'] : false;
+                $strong_passwords = isset($form_settings['resetUserPasswordAllowOnlyStrongPasswords']) ? $form_settings['resetUserPasswordAllowOnlyStrongPasswords'] : false;
+
+                $current_password = isset($form_settings['resetUserPasswordCurrentPasswordValue']) ? $form_settings['resetUserPasswordCurrentPasswordValue'] : null;
+                if ($current_password) {
+                    $current_password = $this->get_form_field_by_id($current_password, $form_data);
+                    $current_password = $this->sanitize_value($current_password);
+                }
+
+                $new_password = isset($form_settings['resetUserPasswordNewPassword']) ? $form_settings['resetUserPasswordNewPassword'] : null;
+                if ($new_password) {
+                    $new_password = $this->get_form_field_by_id($new_password, $form_data);
+                    $new_password = $this->sanitize_value($new_password);
+                }
+
+                $new_password_confirm = isset($form_settings['resetUserPasswordPasswordConfirmationValue']) ? $form_settings['resetUserPasswordPasswordConfirmationValue'] : null;
+                if ($new_password_confirm) {
+                    $new_password_confirm = $this->get_form_field_by_id($new_password_confirm, $form_data);
+                    $new_password_confirm = $this->sanitize_value($new_password_confirm);
+                }
+
+                $note_enter_new_password = isset($form_settings['resetUserPasswordNotificationNewPassword']) ? $form_settings['resetUserPasswordNotificationNewPassword'] : "Please enter a new password.";
+                $note_current_password_incorrect = isset($form_settings['resetUserPasswordNotificationCurrentPasswordIncorrect']) ? $form_settings['resetUserPasswordNotificationCurrentPasswordIncorrect'] : "The current password is incorrect.";
+                $note_passwords_do_not_match = isset($form_settings['resetUserPasswordNotificationPasswordsDoNotMatch']) ? $form_settings['resetUserPasswordNotificationPasswordsDoNotMatch'] : "Passwords do not match.";
+
+                if (!isset($new_password) || empty($new_password)) {
+                    return wp_send_json_error(array(
+                        'message' => __($note_enter_new_password, 'bricks'),
+                    ));
+                }
+
+                if ($verify_password_confirmation == true) {
+                    // Compare passwords
+                    if ($new_password != $new_password_confirm) {
+                        return wp_send_json_error(array(
+                            'message' => __($note_passwords_do_not_match, 'bricks'),
+                        ));
+                    }
+                }
+
+                if ($strong_passwords) {
+                    $password_strength = $this->check_password_strength($new_password);
+                    if ($password_strength['score'] < 3) {
+                        return wp_send_json_error(array(
+                            'message' => implode(" ", $password_strength['reasons']),
+                        ));
+                    }
+                }
+
+                if ($user) {
+                    if (isset($verify_current_password) && $verify_current_password == true) {
+                        if (wp_check_password($current_password, $user->data->user_pass, $user->ID)) {
+                            $this->reset_password($new_password, $user->ID);
+                        } else {
+                            return wp_send_json_error(array(
+                                'message' => __($note_current_password_incorrect, 'bricks'),
+                            ));
+                        }
+                    } else {
+                        $this->reset_password($new_password, $user->ID);
+                    }
+                } else {
+                    return wp_send_json_error(array(
+                        'message' => __("User not found", 'bricks'),
+                    ));
+                }
+
+                break;
+            default:
+                break;
+        }
+    }
+
+    public function check_password_strength($password)
+    {
+        $score = 0;
+        $reasons = array();
+
+        // Check length
+        if (strlen($password) < 8) {
+            $score = 0;
+            $reasons[] = "Password should be at least 8 characters long.";
+        } else {
+            $score++;
+        }
+
+        // Check uppercase and lowercase letters
+        if (!preg_match('/[a-z]/', $password) || !preg_match('/[A-Z]/', $password)) {
+            $score = 0;
+            $reasons[] = "Password should include both uppercase and lowercase letters.";
+        } else {
+            $score++;
+        }
+
+        // Check numbers
+        if (!preg_match('/[0-9]/', $password)) {
+            $score = 0;
+            $reasons[] = "Password should include at least one number.";
+        } else {
+            $score++;
+        }
+
+        // Check special characters
+        if (!preg_match('/[!@#$%^&*()\-_=+{};:,<.>]/', $password)) {
+            $score = 0;
+            $reasons[] = "Password should include at least one special character.";
+        } else {
+            $score++;
+        }
+
+        // Check for common patterns
+        $common_patterns = array(
+            'password',
+            '123456',
+            'qwerty',
+            'admin',
+            'letmein',
+            'welcome',
+            'football',
+        );
+        if (in_array(strtolower($password), $common_patterns)) {
+            $score = 0;
+            $reasons[] = "Password is too common or easily guessable.";
+        } else {
+            $score++;
+        }
+
+        return array(
+            'score' => $score,
+            'reasons' => $reasons,
+        );
+    }
+
+
+    public function reset_password($new_password, $user_id)
+    {
+        wp_set_password($new_password, $user_id);
+        wp_set_auth_cookie($user_id);
     }
 
     public function set_storage_item($form_settings, $form_data, $post_id)
@@ -517,6 +831,71 @@ class FormsHelper
         return $submission_data;
     }
 
+    public function handle_turnstile($form_settings, $form_data, $turnstile_result)
+    {
+        $key = $this->get_turnstile_secret();
+
+        if (!$key) {
+            return true;
+        }
+
+        // Get the Turnstile response from the client-side form
+        $turnstile_response = $turnstile_result;
+
+        if (!$turnstile_response || empty($turnstile_response)) {
+            return false;
+        }
+
+        // Verify the Turnstile response with a server-side request
+        return $this->verify_turnstile_response($turnstile_response, $key);
+    }
+
+    public function get_turnstile_secret()
+    {
+        $turnstile_settings = array_values(array_filter(get_option('brf_activated_elements'), function ($tool) {
+            return $tool->id == 5;
+        }));
+
+        if (count($turnstile_settings) === 0) {
+            return false;
+        }
+
+        $turnstile_settings = $turnstile_settings[0];
+
+        if (!isset($turnstile_settings->settings->useTurnstile) || $turnstile_settings->settings->useTurnstile !== true) {
+            return false;
+        }
+
+        if (empty($turnstile_settings->settings->turnstileSecret)) {
+            return false;
+        }
+
+        return $turnstile_settings->settings->turnstileSecret;
+    }
+
+    public function verify_turnstile_response($turnstile_response, $secret)
+    {
+        $url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+        $data = [
+            'secret' => $secret,
+            'response' => $turnstile_response
+        ];
+
+        $options = [
+            'http' => [
+                'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+                'method' => 'POST',
+                'content' => http_build_query($data)
+            ]
+        ];
+
+        $context = stream_context_create($options);
+        $response = file_get_contents($url, false, $context);
+        $result = json_decode($response);
+
+        return $result && $result->success;
+    }
+
     public function handle_hcaptcha($form_settings, $form_data, $captcha_result)
     {
         $key = $this->get_hcaptcha_key();
@@ -566,7 +945,6 @@ class FormsHelper
         }));
 
         if (count($hcaptcha_settings) === 0) {
-            // Handle case where the option with ID 5 is not found
             return false;
         }
 
@@ -655,18 +1033,18 @@ class FormsHelper
         return $form_fields;
     }
 
-    public function get_form_field_by_id($id, $form_data)
+    public function get_form_field_by_id($id, $form_data, $current_post_id = null)
     {
         foreach ($form_data as $key => $value) {
             $form_id = explode('-', $key);
             $form_id = $form_id[2];
 
             if ($form_id === $id) {
-                return bricks_render_dynamic_data($value);
+                return bricks_render_dynamic_data($value, $current_post_id);
             }
         }
 
-        return bricks_render_dynamic_data($id);
+        return bricks_render_dynamic_data($id, $current_post_id);
     }
 
     public function render_dynamic_formular_data($formula, $form_data, $field_settings)
@@ -695,12 +1073,12 @@ class FormsHelper
     {
         if (is_array($value)) {
             foreach ($value as $key => $sub_value) {
-                $value[$key] = sanitize_value($sub_value);
+                $value[$key] = $this->sanitize_value($sub_value);
             }
         } elseif (is_numeric($value)) {
             $value = preg_replace('/[^0-9]/', '', $value);
         } else {
-            $value = sanitize_text_field($value);
+            $value = wp_kses_post($value);
         }
         return $value;
     }

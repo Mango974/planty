@@ -1,4 +1,5 @@
 <?php
+
 namespace Bricksforge;
 
 /**
@@ -127,7 +128,7 @@ class Admin
             'brfActivatedTools'         => get_option('brf_activated_tools'),
             'brfActivatedElements'      => get_option('brf_activated_elements'),
             'breakpoints'               => \Bricks\Breakpoints::$breakpoints,
-            'pages'                     => query_posts(["post_type" => "any", 'posts_per_page' => -1, 'post_status' => 'publish',]),
+            'pages'                    => query_posts(["post_type" => ["page", "bricks_template"], 'posts_per_page' => -1, 'post_status' => 'publish',]),
             'ptPage'                    => query_posts(["post_type" => "page", 'posts_per_page' => -1, 'post_status' => 'publish',]),
             'templates'                 => get_posts(['post_type' => 'bricks_template', 'post_status' => 'publish', 'numberposts' => -1, 'posts_per_page' => -1]),
             'popups'                    => get_option('brf_popups'),
@@ -136,6 +137,7 @@ class Admin
             'whiteLabel'                => get_option('brf_whitelabel'),
             'panelActivated'            => get_option('brf_activated_tools') && in_array(6, get_option('brf_activated_tools')),
             'settings'                  => get_option('brf_settings'),
+            'adminEmail'               => get_option('admin_email'),
         );
 
         wp_enqueue_style('bricksforge-admin');

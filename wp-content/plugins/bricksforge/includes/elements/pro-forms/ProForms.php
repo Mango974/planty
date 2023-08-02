@@ -11,8 +11,10 @@ class Brf_Pro_Forms extends \Bricks\Element
     public $category = 'bricksforge';
     public $name = 'brf-pro-forms';
     public $icon = 'ti-layout-cta-left';
-    public $scripts = ['bricksForm'];
+    public $scripts = ['bricksForm', 'brfQuill', 'brfProForms'];
     public $nestable = false;
+
+    private $turnstile_key;
 
     public function get_label()
     {
@@ -28,7 +30,19 @@ class Brf_Pro_Forms extends \Bricks\Element
         }
 
         if (isset($this->settings['enableHCaptcha'])) {
-            wp_enqueue_script('brf_hcaptcha');
+            wp_enqueue_script('bricksforge-hcaptcha');
+        }
+
+        if (isset($this->settings['enableTurnstile'])) {
+            wp_enqueue_script('bricksforge-turnstile');
+        }
+
+        if (bricks_is_builder()) {
+            wp_enqueue_script('bricksforge-quill');
+            wp_enqueue_style('bricksforge-quill-snow');
+            wp_enqueue_style('bricksforge-quill-bubble');
+            wp_enqueue_style('editor-buttons');
+            wp_enqueue_script('tinymce', includes_url('js/tinymce/tinymce.min.js'), array(), false, true);
         }
 
         // Frontend: Load Flatpickr JS library (Element Form field with type 'date' is found)
@@ -37,6 +51,26 @@ class Brf_Pro_Forms extends \Bricks\Element
                 if ($field['type'] === 'datepicker') {
                     wp_enqueue_script('bricks-flatpickr');
                     wp_enqueue_style('bricks-flatpickr');
+                }
+
+                // Quill Editor Assets
+                if ($field['type'] === 'rich-text') {
+                    $rich_style = isset($field['quillStyle']) ? $field['quillStyle'] : 'snow';
+
+                    switch ($rich_style) {
+                        case 'snow':
+                            wp_enqueue_script('bricksforge-quill');
+                            wp_enqueue_style('bricksforge-quill-snow');
+                            break;
+                        case 'bubble':
+                            wp_enqueue_script('bricksforge-quill');
+                            wp_enqueue_style('bricksforge-quill-bubble');
+                            break;
+                        case 'wordpress':
+                            wp_enqueue_style('editor-buttons');
+                            wp_enqueue_script('tinymce', includes_url('js/tinymce/tinymce.min.js'), array(), false, true);
+                            break;
+                    }
                 }
             }
         }
@@ -101,6 +135,12 @@ class Brf_Pro_Forms extends \Bricks\Element
             'required' => ['actions', '=', 'post_create'],
         ];
 
+        $this->control_groups['pro_forms_post_action_post_update'] = [
+            'title'    => esc_html__('Update Post', 'bricks'),
+            'tab'      => 'content',
+            'required' => ['actions', '=', 'post_update'],
+        ];
+
         $this->control_groups['pro_forms_post_action_update_post_meta'] = [
             'title'    => esc_html__('Update Post Meta', 'bricks'),
             'tab'      => 'content',
@@ -129,6 +169,12 @@ class Brf_Pro_Forms extends \Bricks\Element
             'title'    => esc_html__('Update User Meta', 'bricks'),
             'tab'      => 'content',
             'required' => ['actions', '=', 'update_user_meta'],
+        ];
+
+        $this->control_groups['resetUserPassword'] = [
+            'title'    => esc_html__('Reset User Password', 'bricks'),
+            'tab'      => 'content',
+            'required' => ['actions', '=', 'reset_user_password'],
         ];
 
         $this->control_groups['pro_forms_post_action_set_storage_item'] = [
@@ -189,6 +235,7 @@ class Brf_Pro_Forms extends \Bricks\Element
                         'email'      => esc_html__('Email', 'bricks'),
                         'text'       => esc_html__('Text', 'bricks'),
                         'textarea'   => esc_html__('Textarea', 'bricks'),
+                        'rich-text'   => esc_html__('Rich Text', 'bricks'),
                         'tel'        => esc_html__('Tel', 'bricks'),
                         'number'     => esc_html__('Number', 'bricks'),
                         'url'        => esc_html__('URL', 'bricks'),
@@ -203,8 +250,22 @@ class Brf_Pro_Forms extends \Bricks\Element
                         'heading' => esc_html__('Heading', 'bricks'),
                         'divider' => esc_html__('Divider', 'bricks'),
                         'step'       => esc_html__('Step', 'bricks'),
+                        'turnstile'  => esc_html__('Turnstile', 'bricks'),
                     ],
                     'clearable' => false,
+                ],
+
+                'quillStyle' => [
+                    'label' => esc_html__('Style', 'bricks'),
+                    'type'  => 'select',
+                    'options' => [
+                        'snow' => esc_html__('Flat Toolbar', 'bricks'),
+                        'bubble' => esc_html__('Tooltip Based', 'bricks'),
+                        'wordpress' => esc_html__('WordPress', 'bricks'),
+                    ],
+                    'default' => 'default',
+                    'description' => esc_html__('Default: Flat Toolbar', 'bricks'),
+                    'required' => ['type', '=', 'rich-text'],
                 ],
 
                 'min'                    => [
@@ -308,11 +369,81 @@ class Brf_Pro_Forms extends \Bricks\Element
                     'description' => esc_html__('If checked, the calculation input will be hidden. Use Dynamic Data to show the calculation value', 'bricks'),
                 ],
 
-
                 'placeholder'            => [
                     'label'    => esc_html__('Placeholder', 'bricks'),
                     'type'     => 'text',
-                    'required' => ['type', '!=', ['file', 'hidden', 'step', 'calculation', 'heading', 'divider']],
+                    'required' => [['type', '!=', ['file', 'hidden', 'step', 'calculation', 'heading', 'divider', 'turnstile']], ['quillStyle', '!=', 'wordpress']],
+                ],
+
+
+                'quillFormats' => [
+                    'label' => esc_html__('Formats', 'bricks'),
+                    'type'  => 'select',
+                    'options' => $this->get_quill_formats(),
+                    'multiple' => true,
+                    'description' => esc_html__('Default: Headings, Bold, Italic, Underline, Link', 'bricks'),
+                    'required' => [['type', '=', 'rich-text'], ['quillStyle', '!=', 'wordpress']],
+                ],
+
+                'mceFormatsInfo' => [
+                    'label' => esc_html__('Info', 'bricks'),
+                    'type'  => 'info',
+                    'required' => [['type', '=', 'rich-text'], ['quillStyle', '=', 'wordpress']],
+                    'content' => esc_html__('A list of toolbar buttons you can use can be found here:', 'bricks') . ' <a target="_blank" href="https://www.tiny.cloud/docs/tinymce/6/available-toolbar-buttons/">TinyMCE Docs</a>',
+
+                ],
+
+                'mceFormats' => [
+                    'label' => esc_html__('Formats', 'bricks'),
+                    'type'  => 'text',
+                    'description' => esc_html__('Example: undo redo | formatselect | bold italic ', 'bricks'),
+                    'required' => [['type', '=', 'rich-text'], ['quillStyle', '=', 'wordpress']],
+                ],
+
+
+                'quillUseBricksColors' => [
+                    'label' => esc_html__('Use Bricks Colors', 'bricks'),
+                    'type'  => 'checkbox',
+                    'default' => true,
+                    'description' => esc_html__('If checked, the editor will use the colors defined in a Bricks Color Palette ', 'bricks'),
+                    'required' => [['type', '=', 'rich-text'], ['quillStyle', '!=', 'wordpress']],
+                ],
+
+                'quillBricksColorPalette' => [
+                    'label' => esc_html__('Color Palette', 'bricks'),
+                    'type'  => 'select',
+                    'options' => $this->get_color_palettes(),
+                    'default' => 'default',
+                    'description' => esc_html__('Choose your Color Palette', 'bricks'),
+                    'required' => [['type', '=', 'rich-text'], ['quillUseBricksColors', '=', true], ['quillStyle', '!=', 'wordpress']],
+                ],
+
+
+                // Rich Text
+                'quillInitialHeight' => [
+                    'label'    => esc_html__('Min Height', 'bricks'),
+                    'type'     => 'number',
+                    'units'    => true,
+                    'css'      => [
+                        [
+                            'property' => 'min-height',
+                            'selector' => '.brf-rich-text-container',
+                        ],
+                        [
+                            'property' => 'min-height',
+                            'selector' => '.mce-panel iframe',
+                        ]
+                    ],
+                    'description' => esc_html__('Default: 120px', 'bricks'),
+                    'required' => ['type', '=', 'rich-text'],
+                ],
+
+                'quillReadOnly' => [
+                    'label' => esc_html__('Read Only', 'bricks'),
+                    'type'  => 'checkbox',
+                    'default' => false,
+                    'description' => esc_html__('If checked, the editor will be read only.', 'bricks'),
+                    'required' => [['type', '=', 'rich-text'], ['quillStyle', '!=', 'wordpress']],
                 ],
 
                 'value'                  => [
@@ -321,10 +452,19 @@ class Brf_Pro_Forms extends \Bricks\Element
                     'required' => ['type', '=', ['hidden']],
                 ],
 
+                'autocomplete' => [
+                    'label' => esc_html__('Autocomplete', 'bricks'),
+                    'type'  => 'select',
+                    'default' => 'off',
+                    'options' => $this->autocomplete_options(),
+                    'description' => esc_html__('If checked, you allow the browser to autocomplete the value.', 'bricks'),
+                    'required' => ['type', '=', ['text', 'email', 'password', 'number', 'tel', 'url']],
+                ],
+
                 'initValue' => [
                     'label'    => esc_html__('Initial Value', 'bricks'),
                     'type'     => 'text',
-                    'required' => ['type', '!=', ['hidden', 'step', 'calculation', 'heading', 'divider']],
+                    'required' => ['type', '!=', ['hidden', 'step', 'calculation', 'heading', 'divider', 'turnstile']],
                 ],
 
                 'fileUploadSeparator'    => [
@@ -368,7 +508,7 @@ class Brf_Pro_Forms extends \Bricks\Element
                             'property' => 'width',
                         ],
                     ],
-                    'required'    => ['type', '!=', ['hidden', 'step', 'heading']],
+                    'required'    => ['type', '!=', ['hidden', 'step', 'heading', 'turnstile']],
                 ],
 
                 'height'                 => [
@@ -388,6 +528,22 @@ class Brf_Pro_Forms extends \Bricks\Element
                     'placeholder' => 'pdf,jpg,...',
                     'type'        => 'text',
                     'required'    => ['type', '=', 'file'],
+                ],
+
+                'hideFileNamePreview' => [
+                    'label' => esc_html__('Hide file name text preview', 'bricks'),
+                    'type'  => 'checkbox',
+                    'default' => false,
+                    'description' => esc_html__('If checked, the file name preview will be hidden.', 'bricks'),
+                    'required' => ['type', '=', 'file'],
+                ],
+
+                'hideImagePreview' => [
+                    'label' => esc_html__('Hide Image Preview', 'bricks'),
+                    'type'  => 'checkbox',
+                    'default' => false,
+                    'description' => esc_html__('If checked, the image preview will be hidden.', 'bricks'),
+                    'required' => ['type', '=', 'file'],
                 ],
 
                 // @since 1.4 (File upload button style here)
@@ -454,7 +610,7 @@ class Brf_Pro_Forms extends \Bricks\Element
                     'label'    => esc_html__('Required', 'bricks'),
                     'type'     => 'checkbox',
                     'inline'   => true,
-                    'required' => ['type', '!=', ['hidden', 'step', 'calculation', 'heading', 'divider']],
+                    'required' => ['type', '!=', ['hidden', 'step', 'calculation', 'heading', 'divider', 'turnstile']],
                 ],
 
                 'options'                => [
@@ -462,15 +618,16 @@ class Brf_Pro_Forms extends \Bricks\Element
                     'type'     => 'textarea',
                     'required' => ['type', '=', ['checkbox', 'select', 'radio']],
                 ],
+
                 'id'                     => [
                     'label'          => esc_html__('ID', 'bricks'),
                     'type'           => 'text',
                     'inline'         => true,
                     'spellcheck'     => false,
                     'hasDynamicData' => false,
-                    'required'       => ['type', '!=', ['hidden', 'step']],
+                    'required'       => ['type', '!=', ['step']],
                     'readonly'       => true,
-                    'editable'       => false
+                    'editable'       => false,
                 ],
 
             ],
@@ -540,8 +697,13 @@ class Brf_Pro_Forms extends \Bricks\Element
                 [
                     'property' => 'font',
                     'selector' => 'select',
-                    // Select placeholder
                 ],
+                [
+                    'property' => 'font',
+                    'selector' => '.ql-editor.ql-blank::before',
+                    'important' => true
+                ],
+
             ],
         ];
 
@@ -857,6 +1019,212 @@ class Brf_Pro_Forms extends \Bricks\Element
             ],
         ];
 
+        // Rich Text Separator
+        $this->controls['richTextSeparator'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Rich Text', 'bricks'),
+            'type'  => 'separator',
+        ];
+
+        // Info
+        $this->controls['richTextInfo'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'content' => esc_html__('If you use the style "WordPress", the styling possibilities are limited.', 'bricks'),
+            'type'  => 'info',
+        ];
+
+        // Rich Text Border
+        $this->controls['richTextBorder'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Border', 'bricks'),
+            'type'  => 'border',
+            'css'   => [
+                [
+                    'property' => 'border',
+                    'selector' => '.ql-toolbar',
+                ],
+                [
+                    'property' => 'border',
+                    'selector' => '.ql-container',
+                ],
+                [
+                    'property' => 'border',
+                    'selector' => '.mce-edit-area',
+                    'important' => true
+                ],
+
+            ],
+        ];
+
+        // Rich Text Typography
+        $this->controls['richTextTypography'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Typography', 'bricks'),
+            'type'  => 'typography',
+            'css'   => [
+                [
+                    'property' => 'font',
+                    'selector' => '.ql-editor',
+                ]
+            ],
+        ];
+
+        // Rich Text Toolbar Background
+
+        $this->controls['richTextToolbarBackground'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Toolbar Background', 'bricks'),
+            'type'  => 'color',
+            'css'   => [
+                [
+                    'property' => 'background-color',
+                    'selector' => '.ql-toolbar',
+                ],
+                [
+                    'property' => 'background-color',
+                    'selector' => '.ql-toolbar .ql-picker-options',
+                ],
+            ],
+        ];
+
+        // Toolbar SVG Background Color
+
+        $this->controls['richTextToolbarSvgBackgroundColor'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Toolbar Icon Background Color', 'bricks'),
+            'type'  => 'color',
+            'css'   => [
+                [
+                    'property' => 'background-color',
+                    'selector' => '.ql-formats button, .ql-formats .ql-picker',
+                ]
+            ],
+        ];
+
+
+        // Rich Text Toolbar SVG Color
+
+        $this->controls['richTextToolbarSvgColor'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Toolbar Icon Color', 'bricks'),
+            'type'  => 'color',
+            'css'   => [
+                [
+                    'property' => 'stroke',
+                    'selector' => '.ql-toolbar svg',
+                ],
+                [
+                    'property' => 'stroke',
+                    'selector' => '.ql-toolbar svg path',
+                ],
+                [
+                    'property' => 'stroke',
+                    'selector' => '.ql-toolbar svg line',
+                ],
+                [
+                    'property' => 'stroke',
+                    'selector' => '.ql-toolbar svg circle',
+                ],
+                [
+                    'property' => 'stroke',
+                    'selector' => '.ql-toolbar svg polygon',
+                ],
+                [
+                    'property' => 'stroke',
+                    'selector' => '.ql-toolbar svg rect',
+                ],
+                [
+                    'property' => 'stroke',
+                    'selector' => '.ql-toolbar svg polyline',
+                ],
+                [
+                    'property' => 'fill',
+                    'selector' => '.ql-toolbar svg polyline',
+                ],
+                [
+                    'property' => 'color',
+                    'selector' => '.ql-toolbar span',
+                ],
+                [
+                    'property' => 'fill',
+                    'selector' => '.ql-toolbar .ql-strike svg path',
+                    'value' => 'transparent'
+                ],
+                [
+                    'property' => 'fill',
+                    'selector' => '.ql-toolbar .ql-video svg rect',
+                    'value' => 'transparent'
+                ],
+                [
+                    'property' => 'fill',
+                    'selector' => '.ql-toolbar .ql-color-picker svg polyline',
+                    'value' => 'transparent'
+                ],
+                [
+                    'property' => 'fill',
+                    'selector' => '.ql-toolbar .ql-direction svg path',
+                    'value' => 'transparent'
+                ],
+                [
+                    'property' => 'fill',
+                    'selector' => '.ql-toolbar .ql-image svg circle',
+                    'value' => 'transparent'
+                ],
+                [
+                    'property' => 'fill',
+                    'selector' => '.ql-toolbar .ql-blockquote svg rect',
+                    'value' => 'transparent'
+                ],
+            ],
+
+        ];
+
+        // Rich Text Editor Background
+
+        $this->controls['richTextEditorBackground'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Editor Background', 'bricks'),
+            'type'  => 'color',
+            'css'   => [
+                [
+                    'property' => 'background-color',
+                    'selector' => '.ql-container',
+                ],
+            ],
+        ];
+
+        // Rich Text Editor Color
+
+        $this->controls['richTextEditorColor'] = [
+            'tab'   => 'content',
+            'group' => 'fields',
+            'label' => esc_html__('Editor Color', 'bricks'),
+            'type'  => 'color',
+            'css'   => [
+                [
+                    'property' => 'color',
+                    'selector' => '.ql-editor',
+                ],
+                // Placeholders
+                [
+                    'property' => 'color',
+                    'selector' => '.ql-editor::before',
+                ],
+                [
+                    'property' => 'color',
+                    'selector' => '.ql-editor::after',
+                ],
+            ],
+        ];
+
         // Group: Submit Button
 
         $this->controls['submitButtonText'] = [
@@ -988,19 +1356,18 @@ class Brf_Pro_Forms extends \Bricks\Element
             'type'          => 'repeater',
             'titleProperty' => 'submitButtonCondition',
             'fields'        => [
+                'submitButtonConditionPostId'   => [
+                    'label'       => esc_html__('Post ID', 'bricks'),
+                    'type'        => 'text',
+                    'placeholder' => 'Leave Empty For Current Post ID',
+                    'required'    => [['submitButtonCondition', '=', 'post_meta']],
+                ],
                 'submitButtonCondition'         => [
                     'tab'     => 'content',
                     'group'   => 'submitButton',
                     'type'    => 'select',
                     'options' => $this->get_submit_conditions(),
                     'default' => 'option'
-                ],
-
-                'submitButtonConditionPostId'   => [
-                    'label'       => esc_html__('Post ID', 'bricks'),
-                    'type'        => 'text',
-                    'placeholder' => 'Leave Empty For Current Post ID',
-                    'required'    => [['submitButtonCondition', '=', 'post_meta']],
                 ],
 
                 'submitButtonConditionValue'    => [
@@ -1050,7 +1417,7 @@ class Brf_Pro_Forms extends \Bricks\Element
                 'hide'     => esc_html__('Hide Submit Button', 'bricks'),
                 'disabled' => esc_html__('Disable Submit Button', 'bricks'),
             ],
-            'default'  => 'disabled'
+            'default'  => 'disabled',
         ];
 
         // Add Select "Relation" And and Or
@@ -1547,6 +1914,23 @@ class Brf_Pro_Forms extends \Bricks\Element
             'required' => ['apiKeyGoogleRecaptcha', '!=', '', 'globalSettings'],
         ];
 
+        // Turnstile
+        if ($this->check_for_turnstile_keys()[0] === true) {
+            $this->controls['enableTurnstile'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'label'    => esc_html__('Enable Turnstile', 'bricks'),
+                'type'     => 'checkbox'
+            ];
+        } else {
+            $this->controls['turnstileInfo'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'content'  => '<a href="https://www.cloudflare.com/de-de/products/turnstile/" target="_blank">Cloudflare Turnstile</a> ' . esc_html__('API key required! Add key in dashboard under: ', 'bricks') . 'Bricksforge -> Elements -> Pro Forms',
+                'type'     => 'info',
+            ];
+        }
+
         /**
          * hCaptcha
          */
@@ -1579,6 +1963,20 @@ class Brf_Pro_Forms extends \Bricks\Element
             ];
         }
 
+        // hCaptcha Theme
+        $this->controls['hCaptchaTheme'] = [
+            'tab'      => 'content',
+            'group'    => 'spam',
+            'label'    => esc_html__('Theme', 'bricks'),
+            'type'     => 'select',
+            'default'  => 'light',
+            'options'  => [
+                'light' => esc_html__('Light', 'bricks'),
+                'dark'  => esc_html__('Dark', 'bricks'),
+            ],
+            'required' => ['enableHCaptcha', '=', true],
+        ];
+
         // Also create a text field "Error Message" for hCaptcha
         $this->controls['hCaptchaInfoMessage'] = [
             'tab'      => 'content',
@@ -1588,6 +1986,80 @@ class Brf_Pro_Forms extends \Bricks\Element
             'required' => ['enableHCaptcha', '=', true],
             'placeholder' => esc_html__('Please verify that you are not a robot.', 'bricks'),
         ];
+
+        if (isset($this->controls['enableTurnstile'])) {
+            $this->controls['turnstileSeparator'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'label'    => esc_html__('Turnstile', 'bricks'),
+                'type'     => 'separator',
+                'required' => ['enableTurnstile', '=', true],
+            ];
+
+            // Appearance
+            $this->controls['turnstileAppearance'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'label'    => esc_html__('Appearance', 'bricks'),
+                'type'     => 'select',
+                'options'  => [
+                    'always' => esc_html__('Always', 'bricks'),
+                    'execute'  => esc_html__('Execute', 'bricks'),
+                    'interaction-only' => esc_html__('Interaction only', 'bricks'),
+                ],
+                'default'  => 'always',
+                'required' => ['enableTurnstile', '=', true],
+            ];
+
+            // Theme
+            $this->controls['turnstileTheme'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'label'    => esc_html__('Theme', 'bricks'),
+                'type'     => 'select',
+                'options'  => [
+                    'light' => esc_html__('Light', 'bricks'),
+                    'dark'  => esc_html__('Dark', 'bricks'),
+                ],
+                'default'  => 'light',
+                'required' => ['enableTurnstile', '=', true],
+            ];
+
+            // Size
+            $this->controls['turnstileSize'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'label'    => esc_html__('Size', 'bricks'),
+                'type'     => 'select',
+                'options'  => [
+                    'normal' => esc_html__('Normal', 'bricks'),
+                    'compact'  => esc_html__('Compact', 'bricks'),
+                ],
+                'default'  => 'normal',
+                'required' => ['enableTurnstile', '=', true],
+            ];
+
+            // Language
+            $this->controls['turnstileLanguage'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'label'    => esc_html__('Language', 'bricks'),
+                'type'     => 'text',
+                'required' => ['enableTurnstile', '=', true],
+                'description' => esc_html__('Enter the language code (e.g. "en" or "de"). Auto if empty.', 'bricks'),
+            ];
+
+            // Error Message
+            $this->controls['turnstileErrorMessage'] = [
+                'tab'      => 'content',
+                'group'    => 'spam',
+                'label'    => esc_html__('Custom Error Message', 'bricks'),
+                'type'     => 'text',
+                'required' => ['enableTurnstile', '=', true],
+                'default' => esc_html__('Your submission is being verified. Please wait a moment before submitting again.', 'bricks'),
+            ];
+        }
+
 
         // Upload Button (remove "Text" control group)
 
@@ -2078,6 +2550,13 @@ class Brf_Pro_Forms extends \Bricks\Element
         ];
 
         // Create New Post
+        $this->controls['pro_forms_post_action_post_create_cat_info'] = [
+            'type' => 'info',
+            'tab'  => 'content',
+            'group' => 'pro_forms_post_action_post_create',
+            'content' => esc_html__('Each field also accepts Form Field IDs', 'bricks'),
+        ];
+
         $this->controls['pro_forms_post_action_post_create_post_status'] = [
             'tab'     => 'content',
             'group'   => 'pro_forms_post_action_post_create',
@@ -2100,6 +2579,7 @@ class Brf_Pro_Forms extends \Bricks\Element
             'options' => $this->get_post_types(),
             'default' => 'post'
         ];
+
         $this->controls['pro_forms_post_action_post_create_categories'] = [
             'tab'           => 'content',
             'group'         => 'pro_forms_post_action_post_create',
@@ -2109,6 +2589,23 @@ class Brf_Pro_Forms extends \Bricks\Element
             'fields'        => [
                 'category' => [
                     'label' => esc_html__('Category Slug', 'bricks'),
+                    'type'  => 'text',
+                ],
+            ]
+        ];
+        $this->controls['pro_forms_post_action_post_create_taxonomies'] = [
+            'tab'           => 'content',
+            'group'         => 'pro_forms_post_action_post_create',
+            'label'         => esc_html__('Post Taxonomies', 'bricks'),
+            'type'          => 'repeater',
+            'titleProperty' => 'taxonomy',
+            'fields'        => [
+                'taxonomy' => [
+                    'label' => esc_html__('Taxonomy Slug', 'bricks'),
+                    'type'  => 'text',
+                ],
+                'term' => [
+                    'label' => esc_html__('Term', 'bricks'),
                     'type'  => 'text',
                 ],
             ]
@@ -2133,7 +2630,7 @@ class Brf_Pro_Forms extends \Bricks\Element
             'label'         => esc_html__('Custom Fields', 'bricks'),
             'type'          => 'repeater',
             'titleProperty' => 'name',
-            'placeholder'   => 'Enter Form Field ID',
+            'placeholder'   => 'Custom Field',
             'fields'        => [
                 'name'  => [
                     'label' => esc_html__('Field Name', 'bricks'),
@@ -2145,6 +2642,78 @@ class Brf_Pro_Forms extends \Bricks\Element
                     'placeholder' => 'Enter Form Field ID'
                 ],
             ]
+        ];
+
+        // Update Post
+        $this->controls['pro_forms_post_action_post_update_cat_info'] = [
+            'type' => 'info',
+            'tab'  => 'content',
+            'group' => 'pro_forms_post_action_post_update',
+            'content' => esc_html__('Each field also accepts Form Field IDs', 'bricks'),
+        ];
+
+        $this->controls['pro_forms_post_action_post_update_post_id'] = [
+            'tab'         => 'content',
+            'group'       => 'pro_forms_post_action_post_update',
+            'label'       => esc_html__('Post ID', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Enter Form Field ID'
+        ];
+
+        $this->controls['pro_forms_post_action_post_update_title'] = [
+            'tab'         => 'content',
+            'group'       => 'pro_forms_post_action_post_update',
+            'label'       => esc_html__('Post Title', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Enter Form Field ID'
+        ];
+
+        $this->controls['pro_forms_post_action_post_update_content'] = [
+            'tab'         => 'content',
+            'group'       => 'pro_forms_post_action_post_update',
+            'label'       => esc_html__('Post Content', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Enter Form Field ID'
+        ];
+
+        // Post Status as text field
+        $this->controls['pro_forms_post_action_post_update_status'] = [
+            'tab'         => 'content',
+            'group'       => 'pro_forms_post_action_post_update',
+            'label'       => esc_html__('Post Status', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Enter Form Field ID',
+            'description' => 'Available: draft, pending, publish, future, private, trash'
+        ];
+
+        // Post Excerpt
+        $this->controls['pro_forms_post_action_post_update_excerpt'] = [
+            'tab'         => 'content',
+            'group'       => 'pro_forms_post_action_post_update',
+            'label'       => esc_html__('Post Excerpt', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Enter Form Field ID'
+        ];
+
+
+        // Post Date
+
+        $this->controls['pro_forms_post_action_post_update_date'] = [
+            'tab'         => 'content',
+            'group'       => 'pro_forms_post_action_post_update',
+            'label'       => esc_html__('Post Date', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Enter Form Field ID'
+        ];
+
+        // Post Thumbnail
+
+        $this->controls['pro_forms_post_action_post_update_thumbnail'] = [
+            'tab'         => 'content',
+            'group'       => 'pro_forms_post_action_post_update',
+            'label'       => esc_html__('Post Thumbnail', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Enter Form Field ID'
         ];
 
         // Update Option
@@ -2410,7 +2979,6 @@ class Brf_Pro_Forms extends \Bricks\Element
             'group'       => 'other',
             'label'       => esc_html__('Disable Submit Messages', 'bricks'),
             'type'        => 'checkbox',
-            'default'     => false,
             'description' => esc_html__("If you don't want to show a submit messages, activate this setting", 'bricks'),
             'css'         => [
                 [
@@ -2418,7 +2986,19 @@ class Brf_Pro_Forms extends \Bricks\Element
                     'value'     => 'none',
                     'important' => true,
                     'selector'  => 'div.message.success',
-                ]
+                ],
+                [
+                    'property'  => 'display',
+                    'value'     => 'none',
+                    'important' => true,
+                    'selector'  => 'div.message.error',
+                ],
+                [
+                    'property'  => 'display',
+                    'value'     => 'none',
+                    'important' => true,
+                    'selector'  => '.loading',
+                ],
             ],
         ];
 
@@ -2427,8 +3007,119 @@ class Brf_Pro_Forms extends \Bricks\Element
             'group'       => 'other',
             'label'       => esc_html__('Disable Form Reset', 'bricks'),
             'type'        => 'checkbox',
-            'default'     => false,
             'description' => esc_html__("If you don't want to reset the form after a successful submission, activate this setting", 'bricks'),
+        ];
+
+        // Reset User Password
+
+        $this->controls['resetUserPasswordMethod'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Method', 'bricks'),
+            'type'        => 'select',
+            'options'     => [
+                'request' => esc_html__('Reset Password Email (Recommended)', 'bricks'),
+                'update'  => esc_html__('Update Password', 'bricks'),
+            ],
+            'description' => esc_html__('Select the method you want to use to reset the user password.', 'bricks'),
+        ];
+
+        $this->controls['resetUserPasswordEmail'] = [
+            'tab' => 'content',
+            'group' => 'resetUserPassword',
+            'label' => esc_html__('User Email', 'bricks'),
+            'type' => 'text',
+            'placeholder' => 'Form Field ID'
+        ];
+
+        // New Password
+        $this->controls['resetUserPasswordNewPassword'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('New Password', 'bricks'),
+            'type'        => 'text',
+            'required'    => [['resetUserPasswordMethod', '=', 'update']],
+        ];
+
+        // Verify Password confirmation
+        $this->controls['resetUserPasswordVerifyPasswordConfirmation'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Server Side: Verify Password Confirmation', 'bricks'),
+            'type'        => 'checkbox',
+            'description' => esc_html__('If you additionally want to verify the password, activate this setting.', 'bricks'),
+            'required'    => [['resetUserPasswordMethod', '=', 'update']],
+        ];
+
+        // Password Confirmation
+        $this->controls['resetUserPasswordPasswordConfirmationValue'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Password 2 (Confirmation Field)', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Form Field ID',
+            'required'    => [['resetUserPasswordMethod', '=', 'update'], ['resetUserPasswordVerifyPasswordConfirmation', '=', true]],
+        ];
+
+
+        // Server Side: Allow only strong passwords
+        $this->controls['resetUserPasswordAllowOnlyStrongPasswords'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Server Side: Allow only strong passwords', 'bricks'),
+            'type'        => 'checkbox',
+            'description' => esc_html__('If you want to allow only strong passwords, activate this setting.', 'bricks'),
+            'required'    => [['resetUserPasswordMethod', '=', 'update']],
+        ];
+
+        // Verify current password
+        $this->controls['resetUserPasswordVerifyCurrentPassword'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Server Side: Verify Current Password', 'bricks'),
+            'type'        => 'checkbox',
+            'description' => esc_html__('If you additionally want to verify the current password, activate this setting.', 'bricks'),
+            'required'    => [['resetUserPasswordMethod', '=', 'update']],
+        ];
+
+        // Current Password
+        $this->controls['resetUserPasswordCurrentPasswordValue'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Current Password', 'bricks'),
+            'type'        => 'text',
+            'placeholder' => 'Form Field ID',
+            'required'    => [['resetUserPasswordMethod', '=', 'update'], ['resetUserPasswordVerifyCurrentPassword', '=', true]],
+        ];
+
+        // Notification "Please enter a new password"
+        $this->controls['resetUserPasswordNotificationNewPassword'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Notification: Please enter new password', 'bricks'),
+            'type'        => 'text',
+            'default' => esc_html__('Please enter a new password', 'bricks'),
+            'required'    => [['resetUserPasswordMethod', '=', 'update']],
+        ];
+
+        // Notification "Passwords do not match"
+        $this->controls['resetUserPasswordNotificationPasswordsDoNotMatch'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Notification: Passwords do not match', 'bricks'),
+            'type'        => 'text',
+            'default' => esc_html__('Passwords do not match', 'bricks'),
+            'required'    => [['resetUserPasswordMethod', '=', 'update'], ['resetUserPasswordVerifyPasswordConfirmation', '=', true]],
+        ];
+
+        // Notification "Current password is incorrect"
+        $this->controls['resetUserPasswordNotificationCurrentPasswordIncorrect'] = [
+            'tab'         => 'content',
+            'group'       => 'resetUserPassword',
+            'label'       => esc_html__('Notification: Current password is incorrect', 'bricks'),
+            'type'        => 'text',
+            'default' => esc_html__('Current password is incorrect', 'bricks'),
+            'required'    => [['resetUserPasswordMethod', '=', 'update'], ['resetUserPasswordVerifyCurrentPassword', '=', true]],
         ];
     }
 
@@ -2481,6 +3172,51 @@ class Brf_Pro_Forms extends \Bricks\Element
         return $options;
     }
 
+    public function get_quill_formats()
+    {
+        return [
+            'header' => 'Headlines',
+            'bold'           => 'Bold',
+            'italic'         => 'Italic',
+            'underline'      => 'Underline',
+            'color' => 'Color',
+            'background'       => 'Background Color',
+            'strike'         => 'Strikethrough',
+            'link' => 'Link',
+            'code' => 'Code',
+
+            'blockquote'     => 'Blockquote',
+            'indent' => 'Indent',
+            'outdent' => 'Outdent',
+            'orderedList' => 'Ordered List',
+            'bulletList' => 'Bullet List',
+            'align' => 'Text Alignment',
+            'direction' => 'Text Direction',
+            'code-block' => 'Code Block',
+
+            'image' => 'Image',
+            'video' => 'Video'
+        ];
+    }
+
+    public function get_color_palettes()
+    {
+
+        $palettes = get_option(BRICKS_DB_COLOR_PALETTE, []);
+
+        if (empty($palettes)) {
+            $palettes = \Bricks\Builder::default_color_palette();
+        }
+
+        // Extract the "name" field for each palette in the array
+        $palette_names = array_column($palettes, 'name');
+
+        // Create an array with the palette names as keys and the palette names as values
+        $palette_names = array_combine($palette_names, $palette_names);
+
+        return $palette_names;
+    }
+
     public function check_for_hcaptcha_keys()
     {
         $hcaptcha_settings = array_values(array_filter(get_option('brf_activated_elements'), function ($tool) {
@@ -2488,7 +3224,6 @@ class Brf_Pro_Forms extends \Bricks\Element
         }));
 
         if (count($hcaptcha_settings) === 0) {
-            // Handle case where the option with ID 5 is not found
             return [false];
         }
 
@@ -2505,6 +3240,94 @@ class Brf_Pro_Forms extends \Bricks\Element
         return [true, $hcaptcha_settings->settings->hCaptchaKey, $hcaptcha_settings->settings->hCaptchaSecret];
     }
 
+    public function autocomplete_options()
+    {
+        return [
+            "off" => "off",
+            "on" => "on",
+            "name" => "name",
+            "honorific-prefix" => "honorific-prefix",
+            "given-name" => "given-name",
+            "additional-name" => "additional-name",
+            "family-name" => "family-name",
+            "honorific-suffix" => "honorific-suffix",
+            "nickname" => "nickname",
+            "email" => "email",
+            "username" => "username",
+            "new-password" => "new-password",
+            "current-password" => "current-password",
+            "one-time-code" => "one-time-code",
+            "organization-title" => "organization-title",
+            "organization" => "organization",
+            "street-address" => "street-address",
+            "address-line1" => "address-line1",
+            "address-line2" => "address-line2",
+            "address-line3" => "address-line3",
+            "address-level4" => "address-level4",
+            "address-level3" => "address-level3",
+            "address-level2" => "address-level2",
+            "address-level1" => "address-level1",
+            "country" => "country",
+            "country-name" => "country-name",
+            "postal-code" => "postal-code",
+            "cc-name" => "cc-name",
+            "cc-given-name" => "cc-given-name",
+            "cc-additional-name" => "cc-additional-name",
+            "cc-family-name" => "cc-family-name",
+            "cc-number" => "cc-number",
+            "cc-exp" => "cc-exp",
+            "cc-exp-month" => "cc-exp-month",
+            "cc-exp-year" => "cc-exp-year",
+            "cc-csc" => "cc-csc",
+            "cc-type" => "cc-type",
+            "transaction-currency" => "transaction-currency",
+            "transaction-amount" => "transaction-amount",
+            "language" => "language",
+            "bday" => "bday",
+            "bday-day" => "bday-day",
+            "bday-month" => "bday-month",
+            "bday-year" => "bday-year",
+            "sex" => "sex",
+            "tel" => "tel",
+            "tel-country-code" => "tel-country-code",
+            "tel-national" => "tel-national",
+            "tel-area-code" => "tel-area-code",
+            "tel-local" => "tel-local",
+            "tel-local-prefix" => "tel-local-prefix",
+            "tel-local-suffix" => "tel-local-suffix",
+            "tel-extension" => "tel-extension",
+            "impp" => "impp",
+            "url" => "url",
+            "photo" => "photo",
+            "webauthn" => "webauthn",
+        ];
+    }
+
+    public function check_for_turnstile_keys()
+    {
+        $turnstile_settings = array_values(array_filter(get_option('brf_activated_elements'), function ($tool) {
+            return $tool->id == 5;
+        }));
+
+        if (count($turnstile_settings) === 0) {
+            return [false];
+        }
+
+        $turnstile_settings = $turnstile_settings[0];
+
+        if (!isset($turnstile_settings->settings->useTurnstile) || $turnstile_settings->settings->useTurnstile !== true) {
+            return [false];
+        }
+
+        if (empty($turnstile_settings->settings->turnstileKey)) {
+            return [false];
+        }
+
+        $this->turnstile_key = $turnstile_settings->settings->turnstileKey;
+
+        return [true, $turnstile_settings->settings->turnstileKey];
+    }
+
     public function get_actions()
     {
         // Combine Integrations\Form\Init::get_available_actions() with two custom actions
@@ -2512,11 +3335,13 @@ class Brf_Pro_Forms extends \Bricks\Element
             Integrations\Form\Init::get_available_actions(),
             [
                 'post_create'      => esc_html__('Create New Post', 'bricks'),
+                'post_update' => esc_html__('Update Post', 'bricks'),
                 'update_post_meta' => esc_html__('Update Post Meta', 'bricks'),
+                'update_user_meta' => esc_html__('Update User Meta', 'bricks'),
+                'reset_user_password' => esc_html__('Reset User Password', 'bricks'),
                 'add_option'       => esc_html__('Database: Add Option', 'bricks'),
                 'update_option'    => esc_html__('Database: Update Option', 'bricks'),
                 'delete_option'    => esc_html__('Database: Delete Option', 'bricks'),
-                'update_user_meta' => esc_html__('Update User Meta', 'bricks'),
                 'set_storage_item' => esc_html__('Set Storage Item', 'bricks'),
             ]
         );
@@ -2572,11 +3397,16 @@ class Brf_Pro_Forms extends \Bricks\Element
         $settings = $this->settings;
 
         if (empty($settings['fields'])) {
-            return $this->render_element_placeholder(
+            // Add an input type hidden field as placeholder
+            $settings['fields'][] = [
+                'type' => 'hidden',
+                'name' => 'brf_form_placeholder',
+            ];
+            /* return $this->render_element_placeholder(
                 [
                     'title' => esc_html__('No form field added.', 'bricks'),
                 ]
-            );
+            ); */
         }
 
         // Fields using <input type="X" />
@@ -2684,6 +3514,72 @@ class Brf_Pro_Forms extends \Bricks\Element
             // Heading
             if ($field['type'] === 'heading') {
                 $this->set_attribute("field-wrapper-$index", 'class', 'brf-field-heading-wrapper');
+            }
+
+            // File Upload
+            if (isset($field['hideImagePreview']) && $field['hideImagePreview'] === true) {
+                $this->set_attribute("field-$index", 'data-hide-image-preview', 'true');
+            }
+
+            // Rich Text
+            if ($field['type'] === 'rich-text') {
+                $this->set_attribute("field-wrapper-$index", 'class', 'brf-field-rich-text');
+
+                // Store the quill style in a data attribute
+                if (isset($field['quillStyle']) && !empty($field['quillStyle'])) {
+                    $this->set_attribute("field-wrapper-$index", 'data-theme', $field['quillStyle']);
+                }
+
+                // Store the placeholder in a data attribute
+                if (isset($field['placeholder']) && !empty($field['placeholder'])) {
+                    $this->set_attribute("field-wrapper-$index", 'data-placeholder', $field['placeholder']);
+                }
+
+                // Store the read only state (quillReadOnly as checkbox) in a data attribute
+                if (isset($field['quillReadOnly']) && !empty($field['quillReadOnly'])) {
+                    $this->set_attribute("field-wrapper-$index", 'data-readonly', "true");
+                }
+
+                // Store the formats in a data attribute (quillFormats). Store it comma separated
+                if (isset($field['quillFormats']) && !empty($field['quillFormats'])) {
+                    $this->set_attribute("field-wrapper-$index", 'data-formats', implode(',', $field['quillFormats']));
+                }
+
+                // Store the formats in a data attribute (mceFormats). Store it comma separated
+                if (isset($field['quillStyle']) && $field['quillStyle'] == 'wordpress' && isset($field['mceFormats']) && !empty($field['mceFormats'])) {
+                    $this->set_attribute("field-wrapper-$index", 'data-formats-mce', $field['mceFormats']);
+                }
+
+                // If the field quillUseBricksColors is set and quillColorPalette is set, store the colors in a data attribute
+                if (isset($field['quillUseBricksColors']) && !empty($field['quillUseBricksColors']) && isset($field['quillBricksColorPalette']) && !empty($field['quillBricksColorPalette'])) {
+                    $palette = get_option(BRICKS_DB_COLOR_PALETTE, []);
+
+                    // Get the palette with the key "name" of the field quillBricksColorPalette
+                    $palette = array_filter($palette, function ($item) use ($field) {
+                        return $item['name'] === $field['quillBricksColorPalette'];
+                    });
+
+                    if (empty($palette)) {
+                        $palette = \Bricks\Builder::default_color_palette();
+                    }
+
+                    // If the palette is found, store the colors in a data attribute
+                    if (!empty($palette)) {
+
+                        $colors_hex = array_reduce($palette, function ($result, $palette) {
+                            $hex_values = array_map(function ($color) {
+                                if (isset($color['hex'])) {
+                                    return $color['hex'];
+                                }
+                            }, $palette['colors']);
+                            return array_merge($result, $hex_values);
+                        }, []);
+
+                        $colors_string = implode(',', $colors_hex);
+
+                        $this->set_attribute("field-wrapper-$index", 'data-colors', $colors_string);
+                    }
+                }
             }
 
             if ($field['type'] == 'step') {
@@ -2833,8 +3729,18 @@ class Brf_Pro_Forms extends \Bricks\Element
                 $this->set_attribute("field-$index", 'spellcheck', 'false');
             }
 
+            // Autocomplete for inputs
+            if ($field['type'] === 'text' || $field['type'] === 'email' || $field['type'] === 'tel' || $field['type'] === 'url' || $field['type'] === 'number') {
+                $autocomp_value = isset($field['autocomplete']) ? $field['autocomplete'] : 'off';
+                $this->set_attribute("field-$index", 'autocomplete', $autocomp_value);
+            }
+
             if (isset($field['required'])) {
                 $this->set_attribute("field-$index", 'required');
+            }
+
+            if ($field['type'] == 'turnstile' && isset($settings['turnstileAppearance']) && $settings['turnstileAppearance'] != 'always') {
+                $this->set_attribute("field-wrapper-$index", 'data-turnstile-hidden', "true");
             }
         }
 
@@ -2842,6 +3748,11 @@ class Brf_Pro_Forms extends \Bricks\Element
         $submit_button_icon_position = !empty($settings['submitButtonIconPosition']) ? $settings['submitButtonIconPosition'] : 'right';
 
         $this->set_attribute('submit-wrapper', 'class', ['form-group', 'submit-button-wrapper']);
+
+        // If submitButtonConditionAction is "disabled", add the "disabled" attribute to the submit button
+        if (!empty($settings['submitButtonConditionAction']) && $settings['submitButtonConditionAction'] === 'disabled') {
+            $this->set_attribute('submit-wrapper', 'disabled');
+        }
 
         $submit_button_classes[] = 'bricks-button';
 
@@ -2877,7 +3788,7 @@ class Brf_Pro_Forms extends \Bricks\Element
                         $init_value = $field['initValue'];
                     }
 
-                    if (isset($settings['showLabels']) && isset($field['label']) && $field['type'] !== 'hidden' && $field['type'] !== 'heading' && $field['type'] !== 'divider') {
+                    if (isset($settings['showLabels']) && isset($field['label']) && $field['type'] !== 'hidden' && $field['type'] !== 'heading' && $field['type'] !== 'divider' && $field['type'] !== 'turnstile') {
                         if ($field['type'] !== 'calculation' || empty($field['onlyRemote'])) {
                             echo "<label {$this->render_attributes("label-$index")}>{$field['label']}</label>";
                         }
@@ -2887,7 +3798,27 @@ class Brf_Pro_Forms extends \Bricks\Element
                     ?>
 
                     <?php if (in_array($field['type'], $input_types)) { ?>
-                        <input value="<?php echo $init_value ?>" <?php echo $this->render_attributes("field-$index"); ?>>
+                        <?php if ($field['type'] == 'hidden') { ?>
+                            <input value="<?php echo isset($field['value']) && $field['value'] ? $field['value'] : '' ?>" <?php echo $this->render_attributes("field-$index"); ?>>
+                        <?php } else { ?>
+                            <input value="<?php echo $init_value ?>" <?php echo $this->render_attributes("field-$index"); ?>>
+                        <?php } ?>
+                    <?php } ?>
+
+                    <?php if ($field['type'] === 'rich-text') { ?>
+                        <?php $rich_style = isset($field['quillStyle']) ? $field['quillStyle'] : 'snow'; ?>
+                        <?php if ($rich_style == 'wordpress') { ?>
+                            <textarea class="brf-rich-text-container" <?php echo $this->render_attributes("field-$index"); ?>><?php echo $init_value ?></textarea>
+                        <?php } else { ?>
+                            <div class="brf-rich-text-container">
+                                <?php echo $init_value ?>
+                            </div>
+                        <?php } ?>
+                        <input type="hidden" value="<?php echo $init_value ?>" <?php echo $this->render_attributes("field-$index"); ?>>
+                    <?php } ?>
+
+                    <?php if ($field['type'] === 'turnstile' && isset($settings['enableTurnstile']) && $settings['enableTurnstile'] && isset($this->turnstile_key)) { ?>
+                        <div class="cf-turnstile" data-language="<?php echo isset($settings['turnstileLanguage']) ? $settings['turnstileLanguage'] : 'auto' ?>" data-appearance="<?php echo isset($settings['turnstileAppearance']) ? $settings['turnstileAppearance'] : 'always' ?>" data-size="<?php echo isset($settings['turnstileSize']) ? $settings['turnstileSize'] : 'normal' ?>" data-theme="<?php echo isset($settings['turnstileTheme']) ? $settings['turnstileTheme'] : 'light' ?>" data-sitekey="<?php echo isset($this->turnstile_key) ? $this->turnstile_key : '' ?>"></div>
                     <?php } ?>
 
                     <?php if ($field['type'] === 'calculation') { ?>
@@ -2922,12 +3853,24 @@ class Brf_Pro_Forms extends \Bricks\Element
 
                         $this->set_attribute("label-$index", 'class', 'choose-files');
                     ?>
-                        <div <?php echo $this->render_attributes("file-preview-$index"); ?>>
-                            <span class="text"></span>
-                            <button type="button" class="bricks-button remove">
-                                <?php esc_html_e('Remove', 'bricks'); ?>
-                            </button>
-                        </div>
+
+                        <?php if (!isset($field['hideFileNamePreview']) || $field['hideFileNamePreview'] == false) { ?>
+                            <div <?php echo $this->render_attributes("file-preview-$index"); ?>>
+                                <span class="text"></span>
+                                <button type="button" class="bricks-button remove">
+                                    <?php esc_html_e('Remove', 'bricks'); ?>
+                                </button>
+                            </div>
+                        <?php } ?>
+
+                        <?php
+                        $file_init_value = bricks_render_dynamic_data(bricks_render_dynamic_data($init_value));
+                        if ($file_init_value && !empty($file_init_value) && $file_init_value != "") {
+                            echo '<div class="brf-field-image-preview">';
+                            echo '<img src="' . $file_init_value . '" alt="Image Preview" />';
+                            echo '</div>';
+                        }
+                        ?>
 
                         <label <?php echo $this->render_attributes("label-$index"); ?>><?php echo $label; ?></label>
                     <?php } ?>
@@ -2937,9 +3880,20 @@ class Brf_Pro_Forms extends \Bricks\Element
                     <?php } ?>
 
                     <?php if ($field['type'] === 'select' && !empty($field['options'])) : ?>
+                        <?php
+
+
+                        ?>
                         <select <?php echo $this->render_attributes("field-$index"); ?>>
                             <?php
-                            $select_options = explode("\n", $field['options']);
+
+                            // If contains echo:, explode in another way
+                            if (strpos($field['options'], 'echo:') !== false) {
+                                $select_options = explode("\n", bricks_render_dynamic_data($field['options']));
+                            } else {
+                                $select_options = explode("\n", $field['options']);
+                            }
+
                             $select_placeholder = false;
 
                             if (isset($field['placeholder'])) {
@@ -2957,6 +3911,9 @@ class Brf_Pro_Forms extends \Bricks\Element
                                 $option_parts = explode('|', $select_option);
                                 $option_key = isset($option_parts[0]) ? esc_attr($option_parts[0]) : '';
                                 $option_value = isset($option_parts[1]) ? esc_html($option_parts[1]) : $option_key;
+
+                                $init_value = bricks_render_dynamic_data(bricks_render_dynamic_data($init_value));
+
                                 ?>
                                 <option value="<?php echo $option_key; ?>" <?php echo $init_value === $option_key ? "selected" : "" ?>><?php echo $option_value; ?></option>
                             <?php endforeach; ?>
@@ -2988,7 +3945,12 @@ class Brf_Pro_Forms extends \Bricks\Element
             $submit_button_icon = isset($settings['submitButtonIcon']) ? self::render_icon($settings['submitButtonIcon']) : false;
 
             // Reload SVG
-            $loading_svg = Helpers::get_file_contents(BRICKS_URL_ASSETS . 'svg/frontend/reload.svg');
+            $loading_svg;
+            if (version_compare(BRICKS_VERSION, '1.8.1', '<')) {
+                $loading_svg = Helpers::get_file_contents(BRICKS_PATH_ASSETS . 'svg/frontend/reload.svg');
+            } else {
+                $loading_svg = Helpers::file_get_contents(BRICKS_PATH_ASSETS . 'svg/frontend/reload.svg');
+            }
             ?>
 
             <?php if (isset($settings['multiStepSummary']) && $settings['multiStepSummary']) { ?>
@@ -3001,12 +3963,14 @@ class Brf_Pro_Forms extends \Bricks\Element
 
             // hCaptcha
             if (isset($settings['enableHCaptcha']) && $settings['enableHCaptcha'] === true && $this->check_for_hcaptcha_keys()[0] === true) {
+                $hCaptcha_theme = isset($settings['hCaptchaTheme']) && $settings['hCaptchaTheme'] === 'light' ? 'light' : 'dark';
                 echo '<div class="brf-hcaptcha-wrapper form-group" '
                     . (isset($settings['hCaptchaInfoMessage']) && !empty($settings['hCaptchaInfoMessage'])
                         ? "data-info='" . $settings['hCaptchaInfoMessage'] . "'"
                         : '')
-                    . '><div class="h-captcha" data-sitekey="' . $this->check_for_hcaptcha_keys()[1] . '"></div></div>';
+                    . '><div data-theme="' . $hCaptcha_theme . '" class="h-captcha" data-sitekey="' . $this->check_for_hcaptcha_keys()[1] . '"></div></div>';
             }
+
             ?>
 
             <div <?php echo $this->render_attributes('submit-wrapper'); ?>>

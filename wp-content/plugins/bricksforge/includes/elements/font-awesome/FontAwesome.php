@@ -1,4 +1,5 @@
 <?php
+
 namespace Bricks;
 
 if (!defined('ABSPATH'))
@@ -134,17 +135,17 @@ class Brf_Font_Awesome extends Element
 			return;
 		}
 
-		wp_enqueue_script('brf-font-awesome-6', "https://kit.fontawesome.com/" . $this->get_token() . "}.js", false, time(), true);
+		wp_enqueue_script('bricksforge-font-awesome-6', "https://kit.fontawesome.com/" . $this->get_token() . "}.js", false, time(), true);
 		add_filter(
 			'script_loader_tag',
 			function ($tag, $handle, $source) {
-			    if ($handle != 'brf-font-awesome-6') {
-				    return $tag;
-			    }
+				if ($handle != 'brf-font-awesome-6') {
+					return $tag;
+				}
 
-			    $tag = '<script type="text/javascript" src="' . $source . '" crossorigin="anonymous"></script>';
-			    return $tag;
-		    },
+				$tag = '<script type="text/javascript" src="' . $source . '" crossorigin="anonymous"></script>';
+				return $tag;
+			},
 			10,
 			3
 		);
@@ -173,8 +174,7 @@ class Brf_Font_Awesome extends Element
 		if ($link) {
 			$this->set_link_attributes('link', $link);
 			echo "<a {$this->render_attributes('link')}>{$icon}</a>";
-		}
-		else {
+		} else {
 			echo "<span>$icon</span>";
 		}
 	}

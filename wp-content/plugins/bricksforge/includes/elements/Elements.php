@@ -1,4 +1,5 @@
 <?php
+
 namespace Bricksforge;
 
 /**
@@ -85,23 +86,9 @@ class Elements
                 'pluginurl'                 => BRICKSFORGE_URL,
                 'nonce'                     => wp_create_nonce('wp_rest'),
                 'apiurl'                    => get_rest_url() . "bricksforge/v1/",
-                'globalClasses'             => get_option('bricks_global_classes'),
-                'globalClassesLocked'       => get_option('bricks_global_classes_locked'),
-                'brfGlobalClassesActivated' => get_option('brf_global_classes_activated'),
-                'brfActivatedTools'         => get_option('brf_activated_tools'),
-                "pageData"                  => \Bricks\Database::get_data(),
-                'bricksPrefix'              => BRICKSFORGE_BRICKS_ELEMENT_PREFIX,
-                'breakpoints'               => \Bricks\Breakpoints::$breakpoints,
-                'icons'                     => \Bricks\Builder::get_icon_font_classes(),
-                'currentUserRole'           => $this->get_current_user_role(),
-                'permissions'               => get_option('brf_permissions_roles'),
-                'panel'                     => get_option('brf_panel'),
-                'panelActivated'            => get_option('brf_activated_tools') && in_array(6, get_option('brf_activated_tools')),
-                'megaMenuActivated'         => get_option('brf_activated_tools') && in_array(3, get_option('brf_activated_tools')),
-                'headerData'                => \Bricks\Database::get_template_data('header')
             );
 
-            wp_localize_script('bricksforge-elements', 'BRFVARS', $args);
+            wp_localize_script('bricksforge-elements', 'BRFELEMENTS', $args);
         });
     }
 

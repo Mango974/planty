@@ -1,4 +1,5 @@
 <?php
+
 namespace Bricksforge;
 
 /**
@@ -26,7 +27,7 @@ class Permissions
 
         $user = wp_get_current_user();
         $roles = get_option('brf_permissions_roles');
-        $rendered_elements = array();
+        $rendered_elements = $elements;
         $hide_only = false;
 
         if (!isset($roles) || empty($roles)) {
@@ -35,20 +36,21 @@ class Permissions
 
         foreach ($roles as $role) {
             if (in_array($role->value, $user->roles)) {
-                $role->permissions->elements = array_filter($role->permissions->elements, function ($e) {
-                    return $e->active === true;
-                });
-
                 if (isset($role->permissions->hideOnly) && $role->permissions->hideOnly == true) {
                     $hide_only = true;
                 }
 
-                $rendered_elements = array_map(function ($element) {
-                    return $element->name;
-                }, $role->permissions->elements);
+                $deactivated_elements = array_filter($role->permissions->elements, function ($e) {
+                    return $e->active === false;
+                });
+
+                $rendered_elements = array_filter($rendered_elements, function ($elem) use ($deactivated_elements) {
+                    return !in_array($elem, array_map(function ($e) {
+                        return $e->name;
+                    }, $deactivated_elements));
+                });
             }
-        }
-        ;
+        };
 
         if ($hide_only === true) {
             add_action('wp_head', [$this, 'hide_elements']);
@@ -104,8 +106,7 @@ class Permissions
                     return $element->name;
                 }, $role->permissions->elements);
             }
-        }
-        ;
+        };
 
         echo "<style>";
         echo "#bricks-panel-elements-categories .category-layout .sortable-wrapper > li {display: none!important}";
@@ -140,58 +141,58 @@ class Permissions
 
             if ($role->permissions->hideTabs === true) {
 ?>
-<style>
-    #bricks-panel-sticky {
-        display: none;
-    }
-</style>
-<?php
+                <style>
+                    #bricks-panel-sticky {
+                        display: none;
+                    }
+                </style>
+            <?php
             }
             if ($role->permissions->hideStyleTab === true) {
-?>
-<style>
-    #bricks-panel-tabs {
-        display: none;
-    }
-</style>
-<?php
+            ?>
+                <style>
+                    #bricks-panel-tabs {
+                        display: none;
+                    }
+                </style>
+            <?php
             }
             if ($role->permissions->cleanUpToolbar === true) {
-?>
-<style>
-    #bricks-toolbar li:not(.logo, [data-balloon="Edit in WordPress"], .new-tab, .preview, .save, .elements) {
-        display: none;
-    }
-</style>
-<?php
+            ?>
+                <style>
+                    #bricks-toolbar li:not(.logo, [data-balloon="Edit in WordPress"], .new-tab, .preview, .save, .elements) {
+                        display: none;
+                    }
+                </style>
+            <?php
             }
             if ($role->permissions->hasCustomBuilderColor === true) {
-?>
-<style>
-    :root {
-        --builder-bg: <?php echo $role->permissions->builderColorPrimary ?>;
-        --builder-bg-2: <?php echo $role->permissions->builderColorSecondary ?>;
-        --builder-bg-3: <?php echo $role->permissions->builderColorSecondary ?>;
-        --builder-color-accent: <?php echo $role->permissions->builderColorAccent ?>;
-        --builder-color: <?php echo $role->permissions->builderColorText ?>;
-    }
+            ?>
+                <style>
+                    :root {
+                        --builder-bg: <?php echo $role->permissions->builderColorPrimary ?>;
+                        --builder-bg-2: <?php echo $role->permissions->builderColorSecondary ?>;
+                        --builder-bg-3: <?php echo $role->permissions->builderColorSecondary ?>;
+                        --builder-color-accent: <?php echo $role->permissions->builderColorAccent ?>;
+                        --builder-color: <?php echo $role->permissions->builderColorText ?>;
+                    }
 
-    #bricks-toolbar .logo {
-        background-color: <?php echo $role->permissions->builderColorAccent ?>;
-    }
+                    #bricks-toolbar .logo {
+                        background-color: <?php echo $role->permissions->builderColorAccent ?>;
+                    }
 
-    [data-control=select] li.hover,
-    [data-control=select] li.selected,
-    [data-control=select] li:hover {
-        color: <?php echo $role->permissions->builderColorText ?>;
-    }
+                    [data-control=select] li.hover,
+                    [data-control=select] li.selected,
+                    [data-control=select] li:hover {
+                        color: <?php echo $role->permissions->builderColorText ?>;
+                    }
 
-    [data-control=select] li.hover:after,
-    [data-control=select] li.selected:after,
-    [data-control=select] li:hover:after {
-        background-color: <?php echo $role->permissions->builderColorPrimary ?>;
-    }
-</style>
+                    [data-control=select] li.hover:after,
+                    [data-control=select] li.selected:after,
+                    [data-control=select] li:hover:after {
+                        background-color: <?php echo $role->permissions->builderColorPrimary ?>;
+                    }
+                </style>
 <?php
             }
         }
@@ -215,8 +216,7 @@ class Permissions
                 if (in_array($role->value, $user->roles)) {
                     $user_role = $role;
                 }
-            }
-            ;
+            };
         }
 
         if (isset($user_role)) {

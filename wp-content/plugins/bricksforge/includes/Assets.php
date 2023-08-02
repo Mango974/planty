@@ -46,7 +46,7 @@ class Assets
         foreach ($scripts as $handle => $script) {
             $deps = isset($script['deps']) ? $script['deps'] : false;
             $in_footer = isset($script['in_footer']) ? $script['in_footer'] : false;
-            $version = isset($script['version']) ? $script['version'] : BRICKSFORGE_VERSION;
+            $version = isset($script['version']) ? $script['version'] : null;
 
             wp_register_script($handle, $script['src'], $deps, $version, $in_footer);
         }
@@ -93,10 +93,10 @@ class Assets
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/bundle/vendors.js'),
                 'in_footer' => true
             ],
-            'bricksforge-frontend'       => [
-                'src'       => BRICKSFORGE_ASSETS . '/bundle/frontend.js',
+            'bricksforge-builder'       => [
+                'src'       => BRICKSFORGE_ASSETS . '/bundle/builder.js',
                 'deps'      => ['bricksforge-vendor', 'bricksforge-runtime'],
-                'version'   => filemtime(BRICKSFORGE_PATH . '/assets/bundle/frontend.js'),
+                'version'   => filemtime(BRICKSFORGE_PATH . '/assets/bundle/builder.js'),
                 'in_footer' => true
             ],
             'bricksforge-admin'          => [
@@ -111,51 +111,51 @@ class Assets
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/js/bricksforge_font_uploader.js'),
                 'in_footer' => true
             ],
-            'brf_gsap'                   => [
+            'bricksforge-gsap'                   => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/gsap.min.js',
                 'deps'      => ['bricks-scripts'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/gsap.min.js'),
                 'in_footer' => true
             ],
-            'brf_gsap_motionpath'        => [
+            'bricksforge-gsap-motionpath'        => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/MotionPathPlugin.min.js',
-                'deps'      => ['bricks-scripts', 'brf_gsap'],
+                'deps'      => ['bricks-scripts', 'bricksforge-gsap'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/MotionPathPlugin.min.js'),
                 'in_footer' => true
             ],
-            'brf_gsap_motionpath_helper' => [
+            'bricksforge-gsap-motionpath-helper' => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/MotionPathHelper.min.js',
-                'deps'      => ['bricks-scripts', 'brf_gsap'],
+                'deps'      => ['bricks-scripts', 'bricksforge-gsap'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/MotionPathHelper.min.js'),
                 'in_footer' => true
             ],
-            'brf_gsap_scrolltrigger'     => [
+            'bricksforge-gsap-scrolltrigger'     => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/ScrollTrigger.min.js',
-                'deps'      => ['bricks-scripts', 'brf_gsap'],
+                'deps'      => ['bricks-scripts', 'bricksforge-gsap'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/ScrollTrigger.min.js'),
                 'in_footer' => true
             ],
-            'brf_gsap_draggable'         => [
+            'bricksforge-gsap-draggable'         => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/Draggable.min.js',
-                'deps'      => ['brf_gsap'],
+                'deps'      => ['bricksforge-gsap'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/Draggable.min.js'),
                 'in_footer' => true
             ],
-            'brf_gsap_flip'              => [
+            'bricksforge-gsap-flip'              => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/Flip.min.js',
-                'deps'      => ['brf_gsap'],
+                'deps'      => ['bricksforge-gsap'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/Flip.min.js'),
                 'in_footer' => true
             ],
-            'brf_gsap_scrollsmoother'    => [
+            'bricksforge-gsap-scrollsmoother'    => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/ScrollSmoother.min.js',
-                'deps'      => ['brf_gsap', 'brf_gsap_scrolltrigger'],
+                'deps'      => ['bricksforge-gsap', 'bricksforge-gsap-scrolltrigger'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/ScrollSmoother.min.js'),
                 'in_footer' => true
             ],
-            'brf_gsap_splittext'         => [
+            'bricksforge-gsap-splittext'         => [
                 'src'       => BRICKSFORGE_ASSETS . '/vendor/SplitText.min.js',
-                'deps'      => ['brf_gsap'],
+                'deps'      => ['bricksforge-gsap'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/SplitText.min.js'),
                 'in_footer' => true
             ],
@@ -185,7 +185,7 @@ class Assets
             ],
             'bricksforge-popups'         => [
                 'src'       => BRICKSFORGE_ASSETS . '/js/bricksforge_popups.js',
-                'deps'      => ['brf_gsap'],
+                'deps'      => ['bricksforge-gsap'],
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/js/bricksforge_popups.js'),
                 'in_footer' => true
             ],
@@ -207,10 +207,22 @@ class Assets
                 'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/scrolly-video.js'),
                 'in_footer' => true
             ],
-            'brf_hcaptcha'               => [
+            'bricksforge-hcaptcha'               => [
                 'src'       => 'https://js.hcaptcha.com/1/api.js',
                 'deps'      => ['bricks-scripts'],
                 'version'   => '1.0',
+                'in_footer' => true
+            ],
+            'bricksforge-turnstile'     => [
+                'src'       => 'https://challenges.cloudflare.com/turnstile/v0/api.js',
+                'deps'      => ['bricks-scripts'],
+                'version'   => null,
+                'in_footer' => true
+            ],
+            'bricksforge-quill' => [
+                'src'       => BRICKSFORGE_ASSETS . '/vendor/quill.min.js',
+                'deps'      => ['bricks-scripts'],
+                'version'   => filemtime(BRICKSFORGE_PATH . '/assets/vendor/quill.min.js'),
                 'in_footer' => true
             ],
         ];
@@ -228,14 +240,19 @@ class Assets
 
         $styles = [
             'bricksforge-style'    => [
-                'src'  => BRICKSFORGE_ASSETS . '/css/style.css',
-                'deps' => ['bricks-frontend']
+                'src'  => BRICKSFORGE_ASSETS . '/css/style.css'
             ],
-            'bricksforge-frontend' => [
-                'src' => BRICKSFORGE_ASSETS . '/css/frontend.css'
+            'bricksforge-builder' => [
+                'src' => BRICKSFORGE_ASSETS . '/css/builder.css'
             ],
             'bricksforge-admin'    => [
                 'src' => BRICKSFORGE_ASSETS . '/css/admin.css'
+            ],
+            'bricksforge-quill-snow' => [
+                'src' => BRICKSFORGE_ASSETS . '/vendor/quill.snow.css'
+            ],
+            'bricksforge-quill-bubble' => [
+                'src' => BRICKSFORGE_ASSETS . '/vendor/quill.bubble.css'
             ],
         ];
 

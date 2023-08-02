@@ -1,50 +1,111 @@
-<?php 
+<?php
 
 namespace Bricks\Integrations\Dynamic_Data\Providers;
 
-class Provider_Bricksforge extends Base {
+class Provider_Bricksforge extends Base
+{
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->title = __('Bricksforge', 'text-domain');
         $this->description = __('Bricksforge Dynamic Data', 'text-domain');
         $this->id = 'bricksforge';
     }
 
-    public static function load_me() {
-		return true;
-	}
-    
-    public function register_tags() {
-		$tags = $this->get_tags_config();
+    public static function load_me()
+    {
+        return true;
+    }
 
-		foreach ( $tags as $key => $tag ) {
-			$this->tags[ $key ] = [
-				'name'     => '{' . $key . '}',
-				'label'    => $tag['label'],
-				'group'    => $tag['group'],
-				'provider' => $this->id,
-			];
-		}
-	}
+    public function register_tags()
+    {
+        $tags = $this->get_tags_config();
 
-    public function get_tags_config() {
+        foreach ($tags as $key => $tag) {
+            $this->tags[$key] = [
+                'name'     => '{' . $key . '}',
+                'label'    => $tag['label'],
+                'group'    => $tag['group'],
+                'provider' => $this->id,
+            ];
+        }
+    }
+
+    public function get_tags_config()
+    {
         $tags = [];
 
         $tags['brf_form_calculation'] = [
             'name' => 'brf_form_calculation',
-            'label' => __('Form Calculation - add id after :', 'text-domain'),
+            'label' => __('Form Calculation - add id after :', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_post_title'] = [
+            'name' => 'brf_post_title',
+            'label' => __('Post Title - add post_id after :', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_post_content'] = [
+            'name' => 'brf_post_content',
+            'label' => __('Post Content - add post_id after :', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_post_status'] = [
+            'name' => 'brf_post_status',
+            'label' => __('Post Status - add post_id after :', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_post_excerpt'] = [
+            'name' => 'brf_post_excerpt',
+            'label' => __('Post Excerpt - add post_id after :', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_post_date'] = [
+            'name' => 'brf_post_date',
+            'label' => __('Post Date - add post_id after :', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_post_thumbnail_url'] = [
+            'name' => 'brf_post_thumbnail',
+            'label' => __('Post Thumbnail Url - add post_id after :', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_post_meta'] = [
+            'name' => 'brf_post_meta',
+            'label' => __('Post Meta - use :meta_name:post_id', 'bricksforge'),
+            'group' => __('Bricksforge', 'text-domain'),
+            'provider' => $this->id,
+        ];
+
+        $tags['brf_acf_field'] = [
+            'name' => 'brf_acf_field',
+            'label' => __('ACF Field - use :field_name:post_id', 'bricksforge'),
             'group' => __('Bricksforge', 'text-domain'),
             'provider' => $this->id,
         ];
 
         return $tags;
-
     }
 
-    public function get_tag_value($tag, $post, $args, $context) {
+    public function get_tag_value($tag, $post, $args, $context)
+    {
         $value = '';
 
-        switch($tag) {
+        switch ($tag) {
             case 'brf_form_calculation':
                 if (empty($args)) {
                     break;
@@ -53,6 +114,8 @@ class Provider_Bricksforge extends Base {
                 $calculation_id = $args[0];
                 $operator = null;
                 $post_calc_value = null;
+                $operator2 = null;
+                $post_calc_value2 = null;
 
                 // args[1] can contain the operator. args[2] can contain the post calculation value
                 if (isset($args[1])) {
@@ -63,25 +126,160 @@ class Provider_Bricksforge extends Base {
                     $post_calc_value = $args[2];
                 }
 
-                $value = $this->get_form_calculation_value($calculation_id, $operator, $post_calc_value);
+                if (isset($args[3])) {
+                    $operator2 = $args[3];
+                }
 
-                
+                if (isset($args[4])) {
+                    $post_calc_value2 = $args[4];
+                }
+
+                $value = $this->get_form_calculation_value($calculation_id, $operator, $post_calc_value, $operator2, $post_calc_value2);
+
+
+                break;
+            case 'brf_post_title':
+                if (empty($args)) {
+                    $value = get_the_title();
+                    break;
+                }
+
+                $post_id = $args[0];
+
+                $value = get_the_title($post_id);
+
+                break;
+
+            case 'brf_post_content':
+                if (empty($args)) {
+                    $value = get_the_content();
+                    break;
+                }
+
+                $post_id = $args[0];
+
+                $value = get_the_content(null, false, $post_id);
+
+                break;
+
+            case 'brf_post_status':
+                if (empty($args)) {
+                    $value = get_post_status();
+                    break;
+                }
+
+                $post_id = $args[0];
+
+                $value = get_post_status($post_id);
+
+                break;
+
+            case 'brf_post_excerpt':
+                if (empty($args)) {
+                    $value = get_the_excerpt();
+                    break;
+                }
+
+                $post_id = $args[0];
+
+                $value = get_the_excerpt($post_id);
+
+                break;
+
+            case 'brf_post_date':
+                if (empty($args)) {
+                    $value = get_the_date();
+                    break;
+                }
+
+                $post_id = $args[0];
+
+                $value = get_the_date(null, $post_id);
+
+                break;
+
+            case 'brf_post_thumbnail_url':
+                if (empty($args)) {
+                    $value = get_the_post_thumbnail_url();
+                    break;
+                }
+
+                $post_id = $args[0];
+
+                $value = get_the_post_thumbnail_url($post_id);
+
+                break;
+
+            case 'brf_post_meta':
+                if (empty($args)) {
+                    break;
+                }
+
+                $meta_key = $args[0];
+                $post_id = null;
+
+                if (isset($args[1])) {
+                    $post_id = $args[1];
+                    $post_id = absint($post_id);
+                }
+
+                $value = get_post_meta($post_id, $meta_key, true);
+
+                break;
+
+            case 'brf_acf_field':
+                if (empty($args)) {
+                    break;
+                }
+
+                $meta_key = $args[0];
+                $post_id = null;
+
+                if (isset($args[1])) {
+                    $post_id = $args[1];
+                    $post_id = absint($post_id);
+                }
+
+                $value = get_field($meta_key, $post_id);
+
                 break;
         }
 
         return $value;
     }
 
-    public function get_form_calculation_value($calculation_id, $operator = null, $post_calc_value = null) {
+    public function get_form_calculation_value($calculation_id, $operator = null, $post_calc_value = null, $operator2 = null, $post_calc_value2 = null)
+    {
+
+        if (isset($operator) && (!isset($post_calc_value) || !is_numeric($post_calc_value))) {
+            return "";
+        }
+
         $output = "";
-        $output .= "<span class='brf-form-calculation-value' data-calculation-id=". $calculation_id ." ". ($operator ? 'data-calculation-operator='. $operator : '') . ($operator ? ' data-calculation-value='. $post_calc_value : '') .">";
+        $output .= "<span class='brf-form-calculation-value' data-calculation-id=" . $calculation_id;
+        $output .= $operator ? ' data-calculation-operator=' . $operator . ' data-calculation-value=' . $this->sanitize_post_calc_value($post_calc_value) : '';
+        $output .= $operator2 ? ' data-calculation-operator2=' . $operator2 . ' data-calculation-value2=' . $this->sanitize_post_calc_value($post_calc_value2) : '';
+        $output .= ">";
         $output .= 0;
         $output .= "</span>";
 
         return $output;
     }
 
-    public function handle_post_calculation($args, $value, $operator, $post_calc_value) {
+    private function sanitize_post_calc_value($post_calc_value)
+    {
+        // Ensure the input only contains allowed characters
+        if (preg_match('#^[\d+\-*/\s().]+$#', $post_calc_value)) {
+            return $post_calc_value;
+        } else {
+            // Return an empty string or a default value if the input is not valid
+            return '';
+        }
+    }
+
+    // Recheck: To we need this here?
+    public function handle_post_calculation($args, $value, $operator, $post_calc_value)
+    {
         $final_value = $value;
 
 
@@ -91,7 +289,7 @@ class Provider_Bricksforge extends Base {
         }
 
         // If the second arg is not a valid operator, return the value
-        if (!in_array($args[1], ['plus', 'minus', 'multiply', 'divide'])) {
+        if (!in_array($args[1], ['add', 'subtract', 'multiply', 'divide'])) {
             return $final_value;
         }
 
@@ -104,14 +302,11 @@ class Provider_Bricksforge extends Base {
             $post_calc_value = $args[2];
         }
 
-        // Make sure that $value and $post_calc_value are floats
-
-        // The operator can be: plus, minus, multiply, divide (in words). Create a switch statement
-        switch($operator) {
-            case 'plus':
+        switch ($operator) {
+            case 'add':
                 $final_value = $value + $post_calc_value;
                 break;
-            case 'minus':
+            case 'subtract':
                 $final_value = $value - $post_calc_value;
                 break;
             case 'multiply':
@@ -124,5 +319,4 @@ class Provider_Bricksforge extends Base {
 
         return $final_value;
     }
-    
 }

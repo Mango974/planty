@@ -378,6 +378,8 @@ class BackendDesigner
 
             $styles = '';
 
+            $settings = (object) $settings;
+
             /**
              * Navigation Styles
              */
@@ -420,27 +422,6 @@ class BackendDesigner
             }
 
             /**
-             * Button Styles
-             */
-            if (isset($status->buttons) && $status->buttons == true) {
-                $styles .= "
-                    .wp-core-ui .button, button.is-tertiary, .media-router .active, .media-router .media-menu-item.active:last-child {
-                        background-color: {$settings->defaultButtonBackground} !important;
-                        color: {$settings->defaultButtonText} !important;
-                        border-color: {$settings->defaultButtonBackground} !important;
-                    }
-                    .button.button-primary, .wrap .page-title-action, button.is-primary {
-                        background-color: {$settings->primaryButtonBackground} !important;
-                        color: {$settings->primaryButtonText} !important;
-                        border-color: {$settings->primaryButtonBackground} !important;
-                    }
-                    .components-button:focus:not(:disabled), .components-button:hover:not(:disabled) {
-                        box-shadow: 0 0 0 1px {$settings->primaryButtonBackground} !important;
-                    }
-                ";
-            }
-
-            /**
              * Page Styles
              */
             if (isset($status->pages) && $status->pages == true) {
@@ -455,11 +436,29 @@ class BackendDesigner
                         background: {$settings->pagesContentBackground} !important;
                         margin-bottom: -1px;
                     }
+                    .community-events ul {
+                        background: {$settings->pagesContentBackground};
+                    }
+                    .js #dashboard_quick_press .drafts {
+                        border-color: {$settings->pagesContentBackgroundVariant};
+                    }
+                    #dashboard-widgets .postbox-container .empty-container {
+                        outline-color: {$settings->pagesContentBackgroundVariant};
+                    }
                     .edit-post-header * {
                         color: {$settings->pagesTextColor} !important;
                     }
                     #wpcontent a, button.button-link {
-                        color: {$settings->pagesLinkColor} !important;
+                        color: {$settings->pagesLinkColor};
+                    }
+                    #wpfooter a {
+                        color: {$settings->pagesLinkColor};
+                    }
+                    #wpcontent table.plugins.wp-list-table .row-actions a {
+                        color: {$settings->pagesLinkColor}!important;
+                    }
+                    #wpcontent table.plugins.wp-list-table .row-actions span.delete a {
+                        color: #b32d2e!important;
                     }
                     .components-notice {
                         background: {$settings->pagesContentBackground} !important;
@@ -485,7 +484,7 @@ class BackendDesigner
                         color: {$settings->pagesTextColor} !important;
                     }
                     #wpcontent a:not(.page-title-action), #wpcontent button.button-link {
-                        color: {$settings->pagesLinkColor} !important;
+                        color: {$settings->pagesLinkColor};
                     }
                     table {
                         border-color: {$settings->pagesContentBackground} !important;
@@ -628,6 +627,22 @@ class BackendDesigner
                         color: {$settings->primaryButtonBackground} !important;
                     }
                 ";
+
+                $styles .= "
+                    .wp-core-ui .button, button.is-tertiary, .media-router .active, .media-router .media-menu-item.active:last-child {
+                        background-color: {$settings->defaultButtonBackground} !important;
+                        color: {$settings->defaultButtonText} !important;
+                        border-color: {$settings->defaultButtonBackground} !important;
+                    }
+                    .button.button-primary, .wrap .page-title-action, button.is-primary {
+                        background-color: {$settings->primaryButtonBackground} !important;
+                        color: {$settings->primaryButtonText} !important;
+                        border-color: {$settings->primaryButtonBackground} !important;
+                    }
+                    .components-button:focus:not(:disabled), .components-button:hover:not(:disabled) {
+                        box-shadow: 0 0 0 1px {$settings->primaryButtonBackground} !important;
+                    }
+                ";
             }
 
             /**
@@ -683,8 +698,19 @@ class BackendDesigner
                         background-color: {$settings->tablesOddColor} !important;
                     }
 
+                    .wp-list-table tr, .wp-list-table th, .wp-list-table td {
+                        background-color: {$settings->tablesEvenColor} !important;
+                    }
+
+                    .wp-list-table tr.active, .wp-list-table tr.active th, .wp-list-table tr.active td {
+                        background-color: {$settings->tablesOddColor} !important;
+                    }
+
                     #bricks-settings td {
                         background-color: {$settings->tablesEvenColor} !important;
+                    }
+                    #wpcontent table.plugins tr, #wpcontent table.plugins tr > th {
+                        border-left-color: {$settings->pagesLinkColor}!important;
                     }
                 ";
             }
@@ -693,6 +719,8 @@ class BackendDesigner
             $this->inject_styles($styles);
         }, 10);
 
+
+        $settings = (object)$settings;
 
         /**
          * Change Footer Text
@@ -806,10 +834,10 @@ class BackendDesigner
                     return;
                 }
 
-                wp_enqueue_script('brf-custom-dashboard-script', BRICKSFORGE_ASSETS . '/js/backend-designer/dashboard.js', [], false, true);
-                wp_localize_script('brf-custom-dashboard-script', 'dashboardSettings', ['linkHandling' => $settings->linkHandling ?? '']);
+                wp_enqueue_script('bricksforge-custom-dashboard-script', BRICKSFORGE_ASSETS . '/js/backend-designer/dashboard.js', [], false, true);
+                wp_localize_script('bricksforge-custom-dashboard-script', 'dashboardSettings', ['linkHandling' => $settings->linkHandling ?? '']);
 
-                wp_enqueue_style('brf-custom-dashboard-style', BRICKSFORGE_ASSETS . '/css/backend-designer/dashboard.css');
+                wp_enqueue_style('bricksforge-custom-dashboard-style', BRICKSFORGE_ASSETS . '/css/backend-designer/dashboard.css');
             });
 
             if (is_user_logged_in() && isset($_GET['backend']) && $_GET['backend'] == 'true') {
@@ -846,7 +874,6 @@ class BackendDesigner
         return preg_replace_callback($cssVarRegex, function ($matches) {
             return 'var(' . $matches[0] . ')';
         }, $css_rules);
-
     }
 
     private function remove_default_dashboard_widgets()
