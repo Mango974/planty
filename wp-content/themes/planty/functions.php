@@ -10,7 +10,7 @@ function add_admin_link_to_menu( $items, $args ) {
     if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
         $items .= '<li><a href="' . admin_url() . '">' . __("Admin") . '</a></li>';
     }
-    $items .= '<li><a href="' . get_page_link(11 ) . '">' . __("Commander") . '</a></li>';
+    $items .= '<li id="menu-item-11"><a href="' . get_page_link(11 ) . '">' . __("Commander") . '</a></li>';
 
     return $items;
 }
